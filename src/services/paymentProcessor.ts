@@ -59,7 +59,7 @@ export class PaymentProcessor {
       // Step 2: Create payment record
       const paymentRequest: PaymentRequest = {
         senderId: request.senderId,
-        recipientId: request.recipientDetails.email || 'external',
+        recipientId: null, // Set to null for external recipients
         amountUSD: quote.inputAmount,
         fromCurrency: quote.inputCurrency as any,
         toCurrency: quote.outputCurrency as any,
@@ -354,12 +354,14 @@ export class PaymentProcessor {
 
       await new Promise(resolve => setTimeout(resolve, 5000));
 
+      const bankName = payment.request.recipientDetails?.bankAccount?.bankName || 'Bank';
+      
       await this.addPaymentStep(paymentId, {
         stepId: '6',
         stepName: PaymentStepType.BANK_TRANSFER,
         status: StepStatus.COMPLETED,
         timestamp: new Date(),
-        details: `Bank transfer completed to ${payment.request.recipientDetails.bankAccount.bankName}`
+        details: `Bank transfer completed to ${bankName}`
       });
 
       console.log(`✅ Final settlement completed for payment: ${paymentId}`);
@@ -390,38 +392,52 @@ export class PaymentProcessor {
 
   // Helper: Add a step to payment
   private async addPaymentStep(paymentId: string, step: PaymentStep): Promise<void> {
-    const payment = await this.supabaseService.getPaymentById(paymentId);
-    if (!payment) return;
+    try {
+      const payment = await this.supabaseService.getPaymentById(paymentId);
+      if (!payment) {
+        console.error(`Payment ${paymentId} not found when trying to add step`);
+        return;
+      }
 
-    // Update existing step or add new one
-    const existingStepIndex = payment.steps.findIndex(s => s.stepId === step.stepId);
-    if (existingStepIndex >= 0) {
-      payment.steps[existingStepIndex] = step;
-    } else {
-      payment.steps.push(step);
+      // Update existing step or add new one
+      const existingStepIndex = payment.steps.findIndex(s => s.stepId === step.stepId);
+      if (existingStepIndex >= 0) {
+        payment.steps[existingStepIndex] = step;
+      } else {
+        payment.steps.push(step);
+      }
+
+      await this.supabaseService.updatePaymentStatus(paymentId, payment.status, payment.steps);
+    } catch (error) {
+      console.error(`Failed to add payment step for ${paymentId}:`, error);
     }
-
-    await this.supabaseService.updatePaymentStatus(paymentId, payment.status, payment.steps);
   }
 
   // Helper: Update payment status
   private async updatePaymentStatus(paymentId: string, status: PaymentStatus, details?: string): Promise<void> {
-    const payment = await this.supabaseService.getPaymentById(paymentId);
-    if (!payment) return;
+    try {
+      const payment = await this.supabaseService.getPaymentById(paymentId);
+      if (!payment) {
+        console.error(`Payment ${paymentId} not found when trying to update status`);
+        return;
+      }
 
-    // Add completion step
-    if (status === PaymentStatus.COMPLETED) {
-      payment.steps.push({
-        stepId: '7',
-        stepName: PaymentStepType.COMPLETE,
-        status: StepStatus.COMPLETED,
-        timestamp: new Date(),
-        details: details || 'Payment completed successfully'
-      });
-      payment.completedAt = new Date();
+      // Add completion step
+      if (status === PaymentStatus.COMPLETED) {
+        payment.steps.push({
+          stepId: '7',
+          stepName: PaymentStepType.COMPLETE,
+          status: StepStatus.COMPLETED,
+          timestamp: new Date(),
+          details: details || 'Payment completed successfully'
+        });
+        payment.completedAt = new Date();
+      }
+
+      await this.supabaseService.updatePaymentStatus(paymentId, status, payment.steps);
+    } catch (error) {
+      console.error(`Failed to update payment status for ${paymentId}:`, error);
     }
-
-    await this.supabaseService.updatePaymentStatus(paymentId, status, payment.steps);
   }
 
   // Health check for all services
