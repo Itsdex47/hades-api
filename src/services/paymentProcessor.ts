@@ -158,7 +158,8 @@ export class PaymentProcessor {
 
     } catch (error) {
       console.error(`❌ Payment processing failed for ${paymentId}:`, error);
-      await this.updatePaymentStatus(paymentId, PaymentStatus.FAILED, `Payment failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      await this.updatePaymentStatus(paymentId, PaymentStatus.FAILED, `Payment failed: ${errorMessage}`);
       throw error;
     }
   }
@@ -232,13 +233,14 @@ export class PaymentProcessor {
       console.log(`✅ USD to USDC conversion completed for payment: ${paymentId}`);
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       await this.addPaymentStep(paymentId, {
         stepId: '3',
         stepName: PaymentStepType.USD_TO_USDC,
         status: StepStatus.FAILED,
         timestamp: new Date(),
-        details: `USD to USDC conversion failed: ${error.message}`,
-        errorMessage: error.message
+        details: `USD to USDC conversion failed: ${errorMessage}`,
+        errorMessage: errorMessage
       });
       throw error;
     }
@@ -275,13 +277,14 @@ export class PaymentProcessor {
       console.log(`✅ Solana USDC transfer completed for payment: ${paymentId}`);
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       await this.addPaymentStep(paymentId, {
         stepId: '4',
         stepName: PaymentStepType.BLOCKCHAIN_TRANSFER,
         status: StepStatus.FAILED,
         timestamp: new Date(),
-        details: `Blockchain transfer failed: ${error.message}`,
-        errorMessage: error.message
+        details: `Blockchain transfer failed: ${errorMessage}`,
+        errorMessage: errorMessage
       });
       throw error;
     }
@@ -318,13 +321,14 @@ export class PaymentProcessor {
       console.log(`✅ USDC to ${payment.request.toCurrency} conversion completed for payment: ${paymentId}`);
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       await this.addPaymentStep(paymentId, {
         stepId: '5',
         stepName: PaymentStepType.USDC_TO_LOCAL,
         status: StepStatus.FAILED,
         timestamp: new Date(),
-        details: `Currency conversion failed: ${error.message}`,
-        errorMessage: error.message
+        details: `Currency conversion failed: ${errorMessage}`,
+        errorMessage: errorMessage
       });
       throw error;
     }
@@ -361,13 +365,14 @@ export class PaymentProcessor {
       console.log(`✅ Final settlement completed for payment: ${paymentId}`);
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       await this.addPaymentStep(paymentId, {
         stepId: '6',
         stepName: PaymentStepType.BANK_TRANSFER,
         status: StepStatus.FAILED,
         timestamp: new Date(),
-        details: `Bank transfer failed: ${error.message}`,
-        errorMessage: error.message
+        details: `Bank transfer failed: ${errorMessage}`,
+        errorMessage: errorMessage
       });
       throw error;
     }
