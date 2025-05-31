@@ -5,11 +5,16 @@ import { authenticateToken } from './auth';
 import { Quote } from '../types/payment';
 
 const router = express.Router();
+
+// Debug logging
+console.log('🔧 Loading payments routes...');
+
 const paymentProcessor = new PaymentProcessor();
 const supabaseService = new SupabaseService();
 
 // Payment Quote Endpoint (saves to database)
 router.post('/quote', async (req: express.Request, res: express.Response) => {
+  console.log('📝 Quote endpoint hit');
   try {
     const { amount, fromCurrency = 'USD', toCurrency = 'MXN', recipientCountry } = req.body;
     
@@ -112,6 +117,7 @@ router.post('/quote', async (req: express.Request, res: express.Response) => {
 
 // Get quote by ID
 router.get('/quote/:quoteId', async (req: express.Request, res: express.Response) => {
+  console.log('🔍 Get quote endpoint hit');
   try {
     const { quoteId } = req.params;
     
@@ -160,77 +166,9 @@ router.get('/quote/:quoteId', async (req: express.Request, res: express.Response
   }
 });
 
-// Process a payment (initiate the payment pipeline)
-router.post('/process', authenticateToken, async (req: express.Request, res: express.Response) => {
-  try {
-    const userId = (req as any).user.userId;
-    const { 
-      quoteId, 
-      recipientDetails, 
-      purpose, 
-      reference 
-    } = req.body;
-
-    // Validation
-    if (!quoteId) {
-      res.status(400).json({ 
-        success: false, 
-        error: 'Quote ID is required' 
-      });
-      return;
-    }
-
-    if (!recipientDetails || !recipientDetails.firstName || !recipientDetails.lastName) {
-      res.status(400).json({ 
-        success: false, 
-        error: 'Recipient details (firstName, lastName) are required' 
-      });
-      return;
-    }
-
-    if (!recipientDetails.bankAccount || !recipientDetails.bankAccount.accountNumber) {
-      res.status(400).json({ 
-        success: false, 
-        error: 'Recipient bank account details are required' 
-      });
-      return;
-    }
-
-    console.log(`💳 Processing payment for user ${userId}, quote ${quoteId}`);
-
-    // Process the payment
-    const payment = await paymentProcessor.processPayment({
-      quoteId,
-      senderId: userId,
-      recipientDetails,
-      purpose,
-      reference
-    });
-
-    res.status(202).json({
-      success: true,
-      message: 'Payment processing initiated',
-      data: {
-        paymentId: payment.id,
-        status: payment.status,
-        estimatedCompletionTime: payment.estimatedCompletionTime,
-        steps: payment.steps,
-        trackingReference: payment.id
-      }
-    });
-
-  } catch (error) {
-    console.error('Payment processing error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Payment processing failed',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
 // DEMO: Process a payment with auto-generated quote
 router.post('/demo', authenticateToken, async (req: express.Request, res: express.Response) => {
+  console.log('🎮 Demo endpoint hit!');
   try {
     const userId = (req as any).user.userId;
     const { 
@@ -340,8 +278,79 @@ router.post('/demo', authenticateToken, async (req: express.Request, res: expres
   }
 });
 
+// Process a payment (initiate the payment pipeline)
+router.post('/process', authenticateToken, async (req: express.Request, res: express.Response) => {
+  console.log('🔄 Process payment endpoint hit');
+  try {
+    const userId = (req as any).user.userId;
+    const { 
+      quoteId, 
+      recipientDetails, 
+      purpose, 
+      reference 
+    } = req.body;
+
+    // Validation
+    if (!quoteId) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'Quote ID is required' 
+      });
+      return;
+    }
+
+    if (!recipientDetails || !recipientDetails.firstName || !recipientDetails.lastName) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'Recipient details (firstName, lastName) are required' 
+      });
+      return;
+    }
+
+    if (!recipientDetails.bankAccount || !recipientDetails.bankAccount.accountNumber) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'Recipient bank account details are required' 
+      });
+      return;
+    }
+
+    console.log(`💳 Processing payment for user ${userId}, quote ${quoteId}`);
+
+    // Process the payment
+    const payment = await paymentProcessor.processPayment({
+      quoteId,
+      senderId: userId,
+      recipientDetails,
+      purpose,
+      reference
+    });
+
+    res.status(202).json({
+      success: true,
+      message: 'Payment processing initiated',
+      data: {
+        paymentId: payment.id,
+        status: payment.status,
+        estimatedCompletionTime: payment.estimatedCompletionTime,
+        steps: payment.steps,
+        trackingReference: payment.id
+      }
+    });
+
+  } catch (error) {
+    console.error('Payment processing error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Payment processing failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Get payment status
 router.get('/status/:paymentId', authenticateToken, async (req: express.Request, res: express.Response) => {
+  console.log('📊 Status endpoint hit');
   try {
     const userId = (req as any).user.userId;
     const { paymentId } = req.params;
@@ -416,6 +425,7 @@ router.get('/status/:paymentId', authenticateToken, async (req: express.Request,
 
 // Get user's payment history
 router.get('/history', authenticateToken, async (req: express.Request, res: express.Response) => {
+  console.log('📚 History endpoint hit');
   try {
     const userId = (req as any).user.userId;
     const payments = await paymentProcessor.getUserPayments(userId);
@@ -464,6 +474,7 @@ router.get('/history', authenticateToken, async (req: express.Request, res: expr
 
 // Cancel a payment (only if still in early stages)
 router.post('/cancel/:paymentId', authenticateToken, async (req: express.Request, res: express.Response) => {
+  console.log('❌ Cancel endpoint hit');
   try {
     const userId = (req as any).user.userId;
     const { paymentId } = req.params;
@@ -522,6 +533,7 @@ router.post('/cancel/:paymentId', authenticateToken, async (req: express.Request
 
 // Get payment processor health check
 router.get('/health', async (req: express.Request, res: express.Response) => {
+  console.log('🏥 Health endpoint hit');
   try {
     const health = await paymentProcessor.healthCheck();
     
@@ -545,5 +557,7 @@ router.get('/health', async (req: express.Request, res: express.Response) => {
     });
   }
 });
+
+console.log('✅ Payment routes loaded successfully');
 
 export default router;
