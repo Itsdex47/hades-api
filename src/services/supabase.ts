@@ -213,6 +213,34 @@ export class SupabaseService {
     }
   }
 
+  // NEW: Create quote method that returns the created quote
+  async createQuote(quoteData: any): Promise<{ id: string }> {
+    const { data, error } = await this.supabase
+      .from('quotes')
+      .insert([{
+        user_id: quoteData.userId,
+        input_amount: quoteData.inputAmount,
+        input_currency: quoteData.inputCurrency,
+        output_amount: quoteData.outputAmount,
+        output_currency: quoteData.outputCurrency,
+        exchange_rate: quoteData.exchangeRate,
+        corridor: quoteData.corridor,
+        fees: quoteData.fees,
+        estimated_arrival_time: quoteData.estimatedArrivalTime,
+        valid_until: quoteData.validUntil,
+        compliance_required: quoteData.complianceRequired,
+        created_at: new Date().toISOString()
+      }])
+      .select('id')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create quote: ${error.message}`);
+    }
+
+    return data;
+  }
+
   async getQuoteById(quoteId: string): Promise<Quote | null> {
     const { data, error } = await this.supabase
       .from('quotes')
