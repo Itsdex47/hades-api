@@ -107,52 +107,35 @@ export class SupabaseService {
 
   // Payment Management
   async createPayment(paymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> {
-    // Build the payment record for database insertion
-    const dbPaymentData: any = {
-      quote_id: paymentData.quoteId,
-      sender_id: paymentData.request.senderId,
-      amount_usd: paymentData.request.amountUSD,
-      from_currency: paymentData.request.fromCurrency,
-      to_currency: paymentData.request.toCurrency,
-      recipient_details: paymentData.request.recipientDetails,
-      purpose: paymentData.request.purpose,
-      reference: paymentData.request.reference,
-      steps: paymentData.steps,
-      blockchain_details: paymentData.blockchain,
-      fiat_details: paymentData.fiat,
-      fees: paymentData.fees,
-      status: paymentData.status,
-      compliance_check: paymentData.compliance,
-      estimated_completion_time: paymentData.estimatedCompletionTime,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    // Only add recipient_id if it's not null (for external recipients, it will be null)
-    if (paymentData.request.recipientId) {
-      dbPaymentData.recipient_id = paymentData.request.recipientId;
-    }
-
-    console.log('🔄 Creating payment with data:', {
-      quote_id: dbPaymentData.quote_id,
-      sender_id: dbPaymentData.sender_id,
-      recipient_id: dbPaymentData.recipient_id || 'null (external)',
-      amount_usd: dbPaymentData.amount_usd,
-      status: dbPaymentData.status
-    });
-
     const { data, error } = await this.supabase
       .from('payments')
-      .insert([dbPaymentData])
+      .insert([{
+        quote_id: paymentData.quoteId,
+        sender_id: paymentData.request.senderId,
+        recipient_id: paymentData.request.recipientId,
+        amount_usd: paymentData.request.amountUSD,
+        from_currency: paymentData.request.fromCurrency,
+        to_currency: paymentData.request.toCurrency,
+        recipient_details: paymentData.request.recipientDetails,
+        purpose: paymentData.request.purpose,
+        reference: paymentData.request.reference,
+        steps: paymentData.steps,
+        blockchain_details: paymentData.blockchain,
+        fiat_details: paymentData.fiat,
+        fees: paymentData.fees,
+        status: paymentData.status,
+        compliance_check: paymentData.compliance,
+        estimated_completion_time: paymentData.estimatedCompletionTime,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }])
       .select()
       .single();
 
     if (error) {
-      console.error('❌ Payment creation error:', error);
       throw new Error(`Failed to create payment: ${error.message}`);
     }
 
-    console.log('✅ Payment successfully created in database:', data.id);
     return this.mapDbPaymentToPayment(data);
   }
 
@@ -232,12 +215,6 @@ export class SupabaseService {
 
   // NEW: Create quote method that returns the created quote
   async createQuote(quoteData: any): Promise<{ id: string }> {
-    console.log('🔄 Creating quote with data:', {
-      user_id: quoteData.userId,
-      amount: quoteData.inputAmount,
-      currency: `${quoteData.inputCurrency} -> ${quoteData.outputCurrency}`
-    });
-
     const { data, error } = await this.supabase
       .from('quotes')
       .insert([{
@@ -258,35 +235,18 @@ export class SupabaseService {
       .single();
 
     if (error) {
-      console.error('❌ Quote creation error:', error);
       throw new Error(`Failed to create quote: ${error.message}`);
     }
 
-    console.log('✅ Quote successfully created in database:', data.id);
     return data;
   }
 
   async getQuoteById(quoteId: string): Promise<Quote | null> {
-    // First try to get by quote_id string
-    let { data, error } = await this.supabase
+    const { data, error } = await this.supabase
       .from('quotes')
       .select('*')
       .eq('quote_id', quoteId)
       .single();
-
-    // If not found and quoteId looks like a UUID, try by id
-    if (error && error.code === 'PGRST116') {
-      const { data: dataById, error: errorById } = await this.supabase
-        .from('quotes')
-        .select('*')
-        .eq('id', quoteId)
-        .single();
-      
-      if (!errorById) {
-        data = dataById;
-        error = null;
-      }
-    }
 
     if (error) {
       if (error.code === 'PGRST116') return null; // Not found
@@ -373,14 +333,14 @@ export class SupabaseService {
 
   private mapDbQuoteToQuote(dbQuote: any): Quote {
     return {
-      quoteId: dbQuote.quote_id || dbQuote.id, // Handle both quote_id string and UUID id
+      quoteId: dbQuote.quote_id,
       inputAmount: dbQuote.input_amount,
       inputCurrency: dbQuote.input_currency,
       outputAmount: dbQuote.output_amount,
       outputCurrency: dbQuote.output_currency,
       exchangeRate: dbQuote.exchange_rate,
       fees: dbQuote.fees,
-      estimatedTime: dbQuote.estimated_time || '2-5 minutes',
+      estimatedTime: dbQuote.estimated_time,
       validUntil: new Date(dbQuote.valid_until),
       corridor: dbQuote.corridor,
       complianceRequired: dbQuote.compliance_required,
