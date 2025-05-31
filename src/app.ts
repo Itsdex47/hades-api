@@ -3,17 +3,37 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import path from 'path';
 import authRoutes from './routes/auth';
 import SupabaseService from './services/supabase';
 import { Quote } from './types/payment';
 
-dotenv.config();
+// Force load .env file from project root
+const envPath = path.join(process.cwd(), '.env');
+console.log('🔧 Loading environment from:', envPath);
+const envResult = dotenv.config({ path: envPath });
+
+if (envResult.error) {
+  console.error('❌ Failed to load .env file:', envResult.error.message);
+  console.log('📁 Current working directory:', process.cwd());
+  console.log('🔍 Looking for .env at:', envPath);
+  process.exit(1);
+} else {
+  console.log('✅ Environment variables loaded successfully');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Initialize services
-const supabaseService = new SupabaseService();
+// Initialize services with better error handling
+let supabaseService: SupabaseService;
+try {
+  supabaseService = new SupabaseService();
+  console.log('✅ Supabase service initialized');
+} catch (error) {
+  console.error('❌ Failed to initialize Supabase service:', error);
+  process.exit(1);
+}
 
 // Middleware
 app.use(helmet());
@@ -138,6 +158,7 @@ app.post('/api/payments/quote', async (req: express.Request, res: express.Respon
     // Save quote to database
     try {
       await supabaseService.saveQuote(quote);
+      console.log('💾 Quote saved to database:', quote.quoteId);
     } catch (dbError) {
       console.error('Failed to save quote to database:', dbError);
       // Continue without failing the request - quote generation is more important
