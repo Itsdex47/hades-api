@@ -1,12 +1,8 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
-<<<<<<< HEAD
 import jwt, { Secret, SignOptions } from 'jsonwebtoken';
-=======
-import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import path from 'path';
->>>>>>> 05d0a26c00f123f4426fa0bb5dc57f86337adce1
 import SupabaseService from '../services/supabase';
 import { User, Currency, KYCStatus } from '../types/payment';
 
