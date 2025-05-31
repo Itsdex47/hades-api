@@ -8,7 +8,7 @@ import {
 } from '@solana/web3.js';
 import {
   TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddress,
+  getAssociatedTokenAddressSync,
   createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   getAccount,
@@ -70,7 +70,7 @@ export class SolanaService {
   async getUSDCBalance(address: string): Promise<number> {
     try {
       const publicKey = new PublicKey(address);
-      const tokenAccount = await getAssociatedTokenAddress(
+      const tokenAccount = getAssociatedTokenAddressSync(
         this.usdcMintAddress,
         publicKey
       );
@@ -100,12 +100,12 @@ export class SolanaService {
       const toPublicKey = new PublicKey(request.toAddress);
 
       // Get associated token accounts
-      const fromTokenAccount = await getAssociatedTokenAddress(
+      const fromTokenAccount = getAssociatedTokenAddressSync(
         this.usdcMintAddress,
         fromKeypair.publicKey
       );
 
-      const toTokenAccount = await getAssociatedTokenAddress(
+      const toTokenAccount = getAssociatedTokenAddressSync(
         this.usdcMintAddress,
         toPublicKey
       );
