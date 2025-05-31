@@ -104,7 +104,7 @@ app.post('/api/payments/quote', (req: express.Request, res: express.Response) =>
     console.error('Quote generation error:', error);
     res.status(500).json({ error: 'Failed to generate quote' });
   }
-}) as express.RequestHandler);
+}) as express.RequestHandler;
 
 // Supported Corridors
 app.get('/api/corridors', (req, res) => {
