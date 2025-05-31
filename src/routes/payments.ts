@@ -1,9 +1,11 @@
 import express from 'express';
 import PaymentProcessor from '../services/paymentProcessor';
+import SupabaseService from '../services/supabase';
 import { authenticateToken } from './auth';
 
 const router = express.Router();
 const paymentProcessor = new PaymentProcessor();
+const supabaseService = new SupabaseService();
 
 // Process a payment (initiate the payment pipeline)
 router.post('/process', authenticateToken, async (req: express.Request, res: express.Response) => {
@@ -69,6 +71,117 @@ router.post('/process', authenticateToken, async (req: express.Request, res: exp
     res.status(500).json({ 
       success: false, 
       error: 'Payment processing failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// DEMO: Process a payment with auto-generated quote
+router.post('/demo', authenticateToken, async (req: express.Request, res: express.Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { 
+      amount = 100,
+      inputCurrency = 'USD',
+      outputCurrency = 'MXN',
+      recipientDetails,
+      purpose = 'Demo payment',
+      reference = 'Starling Labs Demo'
+    } = req.body;
+
+    // Validation for demo
+    if (!recipientDetails || !recipientDetails.firstName || !recipientDetails.lastName) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'Recipient details (firstName, lastName) are required for demo' 
+      });
+      return;
+    }
+
+    console.log(`🎮 Processing DEMO payment for user ${userId}, amount: ${amount} ${inputCurrency}`);
+
+    // Create a demo quote automatically
+    const demoQuote = {
+      userId,
+      inputAmount: amount,
+      inputCurrency,
+      outputCurrency,
+      corridor: 'US_TO_MEXICO',
+      exchangeRate: 18.50, // Demo rate
+      outputAmount: amount * 18.50 * 0.985, // Apply 1.5% fee
+      fees: {
+        platformFeeUSD: amount * 0.015,
+        exchangeFeeUSD: 0,
+        networkFeeUSD: 0.50,
+        totalFeeUSD: (amount * 0.015) + 0.50
+      },
+      estimatedArrivalTime: 300, // 5 minutes
+      validUntil: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      complianceRequired: false
+    };
+
+    // Save the demo quote
+    const quote = await supabaseService.createQuote(demoQuote);
+    console.log(`✅ Demo quote created: ${quote.id}`);
+
+    // Add default bank account if not provided
+    const defaultRecipientDetails = {
+      ...recipientDetails,
+      bankAccount: recipientDetails.bankAccount || {
+        accountNumber: '123456789012',
+        bankName: 'Banco Azteca',
+        bankCode: 'AZTECA',
+        accountType: 'checking'
+      },
+      address: recipientDetails.address || {
+        street: '123 Reforma Avenue',
+        city: 'Mexico City',
+        state: 'CDMX',
+        country: 'Mexico',
+        postalCode: '06500'
+      }
+    };
+
+    // Process the payment with the demo quote
+    const payment = await paymentProcessor.processPayment({
+      quoteId: quote.id,
+      senderId: userId,
+      recipientDetails: defaultRecipientDetails,
+      purpose,
+      reference
+    });
+
+    res.status(202).json({
+      success: true,
+      message: 'Demo payment processing initiated',
+      data: {
+        paymentId: payment.id,
+        quoteId: quote.id,
+        status: payment.status,
+        amount: {
+          input: amount,
+          inputCurrency,
+          output: demoQuote.outputAmount,
+          outputCurrency,
+          exchangeRate: demoQuote.exchangeRate
+        },
+        fees: demoQuote.fees,
+        recipient: {
+          name: `${recipientDetails.firstName} ${recipientDetails.lastName}`,
+          bank: defaultRecipientDetails.bankAccount.bankName
+        },
+        estimatedCompletionTime: payment.estimatedCompletionTime,
+        steps: payment.steps,
+        trackingReference: payment.id,
+        demo: true
+      }
+    });
+
+  } catch (error) {
+    console.error('Demo payment processing error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Demo payment processing failed',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
