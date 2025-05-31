@@ -1,11 +1,29 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+<<<<<<< HEAD
 import jwt, { Secret, SignOptions } from 'jsonwebtoken';
+=======
+import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+import path from 'path';
+>>>>>>> 05d0a26c00f123f4426fa0bb5dc57f86337adce1
 import SupabaseService from '../services/supabase';
 import { User, Currency, KYCStatus } from '../types/payment';
 
+// Ensure environment variables are loaded
+const envPath = path.join(process.cwd(), '.env');
+dotenv.config({ path: envPath });
+
 const router = express.Router();
-const supabaseService = new SupabaseService();
+
+// Initialize Supabase service with better error handling
+let supabaseService: SupabaseService;
+try {
+  supabaseService = new SupabaseService();
+} catch (error) {
+  console.error('❌ Failed to initialize Supabase in auth routes:', error);
+  throw error;
+}
 
 // User registration
 router.post('/register', async (req: express.Request, res: express.Response) => {
@@ -55,6 +73,8 @@ router.post('/register', async (req: express.Request, res: express.Response) => 
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as SignOptions
     );
 
+    console.log('✅ User registered successfully:', user.email);
+
     res.status(201).json({
       success: true,
       message: 'User created successfully',
@@ -100,6 +120,8 @@ router.post('/login', async (req: express.Request, res: express.Response) => {
       (process.env.JWT_SECRET || 'fallback_secret') as Secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as SignOptions
     );
+
+    console.log('✅ User logged in successfully:', user.email);
 
     res.json({
       success: true,
