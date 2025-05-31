@@ -21,6 +21,28 @@ try {
   throw error;
 }
 
+// Helper function to safely extract error message
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+// Helper function to safely extract error details
+function getErrorDetails(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    };
+  }
+  return {
+    message: String(error),
+    stack: undefined,
+    name: 'UnknownError'
+  };
+}
+
 // Debug endpoint to test Supabase connection
 router.get('/debug', async (req: express.Request, res: express.Response) => {
   try {
@@ -45,10 +67,11 @@ router.get('/debug', async (req: express.Request, res: express.Response) => {
     });
   } catch (error) {
     console.error('🔍 Debug endpoint error:', error);
+    const errorDetails = getErrorDetails(error);
     res.status(500).json({
       success: false,
-      error: error.message,
-      stack: error.stack
+      error: errorDetails.message,
+      stack: errorDetails.stack
     });
   }
 });
@@ -91,7 +114,7 @@ router.post('/register', async (req: express.Request, res: express.Response) => 
       }
       console.log('✅ User does not exist, proceeding...');
     } catch (checkError) {
-      console.log('⚠️ Error checking existing user (this might be OK):', checkError.message);
+      console.log('⚠️ Error checking existing user (this might be OK):', getErrorMessage(checkError));
       // Continue - this error might just mean user doesn't exist
     }
 
@@ -149,16 +172,12 @@ router.post('/register', async (req: express.Request, res: express.Response) => 
     });
 
   } catch (error) {
-    console.error('❌ Registration error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      details: error.details
-    });
+    const errorDetails = getErrorDetails(error);
+    console.error('❌ Registration error details:', errorDetails);
     
     res.status(500).json({ 
       error: 'Registration failed',
-      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      details: process.env.NODE_ENV === 'development' ? errorDetails.message : 'Internal server error'
     });
   }
 });
