@@ -191,29 +191,41 @@ router.post('/demo', authenticateToken, async (req: express.Request, res: expres
 
     console.log(`🎮 Processing DEMO payment for user ${userId}, amount: ${amount} ${inputCurrency}`);
 
-    // Create a demo quote automatically
-    const demoQuote = {
-      userId,
+    // Create a demo quote using the existing saveQuote method (correct schema)
+    const exchangeRate = 18.50;
+    const starlingFeePercent = 0.015;
+    const starlingFee = amount * starlingFeePercent;
+    const blockchainFee = 0.50;
+    const totalFees = starlingFee + blockchainFee;
+    const outputAmount = (amount - totalFees) * exchangeRate;
+
+    const quoteId = `demo_quote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    const demoQuote: Quote = {
+      quoteId,
       inputAmount: amount,
       inputCurrency,
+      outputAmount: parseFloat(outputAmount.toFixed(2)),
       outputCurrency,
-      corridor: 'US_TO_MEXICO',
-      exchangeRate: 18.50, // Demo rate
-      outputAmount: amount * 18.50 * 0.985, // Apply 1.5% fee
+      exchangeRate,
       fees: {
-        platformFeeUSD: amount * 0.015,
-        exchangeFeeUSD: 0,
-        networkFeeUSD: 0.50,
-        totalFeeUSD: (amount * 0.015) + 0.50
+        starlingFee: parseFloat(starlingFee.toFixed(2)),
+        starlingFeePercent,
+        blockchainFee,
+        fxSpread: 0,
+        partnerFee: 0,
+        totalFeeUSD: parseFloat(totalFees.toFixed(2))
       },
-      estimatedArrivalTime: 300, // 5 minutes
-      validUntil: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-      complianceRequired: false
+      estimatedTime: '2-5 minutes',
+      validUntil: new Date(Date.now() + 10 * 60 * 1000),
+      corridor: 'US_TO_MEXICO',
+      complianceRequired: false,
+      createdAt: new Date()
     };
 
-    // Save the demo quote
-    const quote = await supabaseService.createQuote(demoQuote);
-    console.log(`✅ Demo quote created: ${quote.id}`);
+    // Save the demo quote using the existing saveQuote method (correct schema)
+    await supabaseService.saveQuote(demoQuote);
+    console.log(`✅ Demo quote saved: ${quoteId}`);
 
     // Add default bank account if not provided
     const defaultRecipientDetails = {
@@ -235,7 +247,7 @@ router.post('/demo', authenticateToken, async (req: express.Request, res: expres
 
     // Process the payment with the demo quote
     const payment = await paymentProcessor.processPayment({
-      quoteId: quote.id,
+      quoteId: quoteId,
       senderId: userId,
       recipientDetails: defaultRecipientDetails,
       purpose,
@@ -247,14 +259,14 @@ router.post('/demo', authenticateToken, async (req: express.Request, res: expres
       message: 'Demo payment processing initiated',
       data: {
         paymentId: payment.id,
-        quoteId: quote.id,
+        quoteId: quoteId,
         status: payment.status,
         amount: {
           input: amount,
           inputCurrency,
-          output: demoQuote.outputAmount,
+          output: outputAmount,
           outputCurrency,
-          exchangeRate: demoQuote.exchangeRate
+          exchangeRate
         },
         fees: demoQuote.fees,
         recipient: {
