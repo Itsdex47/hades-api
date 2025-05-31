@@ -59,7 +59,7 @@ export class PaymentProcessor {
       // Step 2: Create payment record
       const paymentRequest: PaymentRequest = {
         senderId: request.senderId,
-        recipientId: request.recipientDetails.email || 'external',
+        recipientId: null, // Set to null for external recipients
         amountUSD: quote.inputAmount,
         fromCurrency: quote.inputCurrency as any,
         toCurrency: quote.outputCurrency as any,
