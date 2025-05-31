@@ -270,10 +270,11 @@ router.post('/demo', authenticateToken, async (req: express.Request, res: expres
 
   } catch (error) {
     console.error('Demo payment processing error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     res.status(500).json({ 
       success: false, 
       error: 'Demo payment processing failed',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
     });
   }
 });
@@ -340,10 +341,11 @@ router.post('/process', authenticateToken, async (req: express.Request, res: exp
 
   } catch (error) {
     console.error('Payment processing error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     res.status(500).json({ 
       success: false, 
       error: 'Payment processing failed',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
     });
   }
 });
