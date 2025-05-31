@@ -45,9 +45,17 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Debug logging for routes
+console.log('🛣️ Registering routes...');
+
 // Routes
+console.log('🔐 Registering auth routes at /api/auth');
 app.use('/api/auth', authRoutes);
+
+console.log('💳 Registering payments routes at /api/payments');
 app.use('/api/payments', paymentsRoutes);
+
+console.log('✅ All routes registered');
 
 // Health check (now includes database check)
 app.get('/health', async (req, res) => {
@@ -133,6 +141,33 @@ app.get('/api/corridors', (req, res) => {
   });
 });
 
+// Debug: List all registered routes
+app.get('/debug/routes', (req, res) => {
+  const routes: any[] = [];
+  
+  app._router.stack.forEach((middleware: any) => {
+    if (middleware.route) {
+      // Direct route
+      routes.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      });
+    } else if (middleware.name === 'router') {
+      // Router middleware
+      middleware.handle.stack.forEach((handler: any) => {
+        if (handler.route) {
+          routes.push({
+            path: middleware.regexp.source.replace('\\/?', '') + handler.route.path,
+            methods: Object.keys(handler.route.methods)
+          });
+        }
+      });
+    }
+  });
+  
+  res.json({ routes });
+});
+
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('API Error:', err.stack);
@@ -149,12 +184,15 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // 404 handler
 app.use((req, res) => {
+  console.log(`❌ 404 - Route not found: ${req.method} ${req.path}`);
   res.status(404).json({ 
     success: false,
     error: 'Endpoint not found',
+    requested: `${req.method} ${req.path}`,
     available_endpoints: [
       'GET /health',
       'GET /api/status',
+      'GET /debug/routes',
       'POST /api/auth/register',
       'POST /api/auth/login',
       'GET /api/auth/profile',
@@ -176,6 +214,7 @@ app.listen(PORT, () => {
   console.log(`🔐 User registration: POST http://localhost:${PORT}/api/auth/register`);
   console.log(`💰 Payment quote: POST http://localhost:${PORT}/api/payments/quote`);
   console.log(`🎮 Demo payment: POST http://localhost:${PORT}/api/payments/demo`);
+  console.log(`🐛 Debug routes: GET http://localhost:${PORT}/debug/routes`);
   console.log(`🌍 Corridors: GET http://localhost:${PORT}/api/corridors`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV}`);
   console.log(`💾 Database: Supabase`);
