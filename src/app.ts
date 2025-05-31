@@ -44,7 +44,7 @@ app.get('/api/status', (req, res) => {
 });
 
 // Payment Quote Endpoint (MVP)
-app.post('/api/payments/quote', (req, res) => {
+app.post('/api/payments/quote', ((req: express.Request, res: express.Response, next: express.NextFunction) => {
   try {
     const { amount, fromCurrency = 'USD', toCurrency = 'MXN', recipientCountry } = req.body;
     
@@ -102,7 +102,7 @@ app.post('/api/payments/quote', (req, res) => {
     console.error('Quote generation error:', error);
     res.status(500).json({ error: 'Failed to generate quote' });
   }
-});
+}) as express.RequestHandler);
 
 // Supported Corridors
 app.get('/api/corridors', (req, res) => {
