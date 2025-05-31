@@ -1,6 +1,6 @@
 export interface PaymentRequest {
   senderId: string;
-  recipientId: string;
+  recipientId: string | null;
   amountUSD: number;
   fromCurrency: Currency;
   toCurrency: Currency;
