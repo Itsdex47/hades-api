@@ -3,11 +3,17 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import authRoutes from './routes/auth';
+import SupabaseService from './services/supabase';
+import { Quote } from './types/payment';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Initialize services
+const supabaseService = new SupabaseService();
 
 // Middleware
 app.use(helmet());
@@ -19,15 +25,33 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    service: 'Starling Remittance API',
-    version: '0.1.0',
-    environment: process.env.NODE_ENV
-  });
+// Routes
+app.use('/api/auth', authRoutes);
+
+// Health check (now includes database check)
+app.get('/health', async (req, res) => {
+  try {
+    const dbHealthy = await supabaseService.healthCheck();
+    
+    res.json({ 
+      status: dbHealthy ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      service: 'Starling Remittance API',
+      version: '0.1.0',
+      environment: process.env.NODE_ENV,
+      services: {
+        database: dbHealthy ? 'connected' : 'disconnected',
+        api: 'running'
+      }
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      service: 'Starling Remittance API',
+      error: 'Database connection failed'
+    });
+  }
 });
 
 // API Status
@@ -38,13 +62,19 @@ app.get('/api/status', (req, res) => {
     environment: process.env.NODE_ENV,
     features: {
       demoMode: process.env.ENABLE_DEMO_MODE === 'true',
-      kycBypass: process.env.ENABLE_KYC_BYPASS === 'true'
+      kycBypass: process.env.ENABLE_KYC_BYPASS === 'true',
+      database: 'connected'
+    },
+    endpoints: {
+      auth: '/api/auth/*',
+      payments: '/api/payments/*',
+      corridors: '/api/corridors'
     }
   });
 });
 
-// Payment Quote Endpoint (MVP)
-app.post('/api/payments/quote', (req: express.Request, res: express.Response) => {
+// Payment Quote Endpoint (now saves to database)
+app.post('/api/payments/quote', async (req: express.Request, res: express.Response) => {
   try {
     const { amount, fromCurrency = 'USD', toCurrency = 'MXN', recipientCountry } = req.body;
     
@@ -79,36 +109,125 @@ app.post('/api/payments/quote', (req: express.Request, res: express.Response) =>
     const amountAfterFees = amount - totalFees;
     const recipientAmount = parseFloat((amountAfterFees * exchangeRate).toFixed(2));
     
+    const quoteId = `quote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const validUntil = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    
+    // Create quote object
+    const quote: Quote = {
+      quoteId,
+      inputAmount: amount,
+      inputCurrency: fromCurrency,
+      outputAmount: recipientAmount,
+      outputCurrency: toCurrency,
+      exchangeRate,
+      fees: {
+        starlingFee: parseFloat(starlingFee.toFixed(2)),
+        starlingFeePercent,
+        blockchainFee,
+        fxSpread: 0,
+        partnerFee: 0,
+        totalFeeUSD: parseFloat(totalFees.toFixed(2))
+      },
+      estimatedTime: '2-5 minutes',
+      validUntil,
+      corridor: rateKey,
+      complianceRequired: amount > 1000, // KYC required for amounts > $1000
+      createdAt: new Date()
+    };
+    
+    // Save quote to database
+    try {
+      await supabaseService.saveQuote(quote);
+    } catch (dbError) {
+      console.error('Failed to save quote to database:', dbError);
+      // Continue without failing the request - quote generation is more important
+    }
+    
     res.json({
+      success: true,
       quote: {
-        quoteId: `quote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        inputAmount: amount,
-        inputCurrency: fromCurrency,
-        outputAmount: recipientAmount,
-        outputCurrency: toCurrency,
-        exchangeRate,
+        quoteId: quote.quoteId,
+        inputAmount: quote.inputAmount,
+        inputCurrency: quote.inputCurrency,
+        outputAmount: quote.outputAmount,
+        outputCurrency: quote.outputCurrency,
+        exchangeRate: quote.exchangeRate,
         fees: {
-          starlingFee: parseFloat(starlingFee.toFixed(2)),
-          blockchainFee,
-          totalFees: parseFloat(totalFees.toFixed(2)),
+          starlingFee: quote.fees.starlingFee,
+          blockchainFee: quote.fees.blockchainFee,
+          totalFees: quote.fees.totalFeeUSD,
           feePercentage: starlingFeePercent * 100
         },
-        estimatedTime: '2-5 minutes',
-        validUntil: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes
-        corridor: rateKey,
-        complianceRequired: amount > 1000 // KYC required for amounts > $1000
+        estimatedTime: quote.estimatedTime,
+        validUntil: quote.validUntil.toISOString(),
+        corridor: quote.corridor,
+        complianceRequired: quote.complianceRequired
       }
     });
     
   } catch (error) {
     console.error('Quote generation error:', error);
-    res.status(500).json({ error: 'Failed to generate quote' });
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to generate quote' 
+    });
   }
-}) as express.RequestHandler;
+});
+
+// Get quote by ID
+app.get('/api/payments/quote/:quoteId', async (req: express.Request, res: express.Response) => {
+  try {
+    const { quoteId } = req.params;
+    
+    const quote = await supabaseService.getQuoteById(quoteId);
+    
+    if (!quote) {
+      res.status(404).json({ 
+        success: false,
+        error: 'Quote not found or expired' 
+      });
+      return;
+    }
+    
+    // Check if quote is still valid
+    if (new Date() > quote.validUntil) {
+      res.status(410).json({ 
+        success: false,
+        error: 'Quote has expired' 
+      });
+      return;
+    }
+    
+    res.json({
+      success: true,
+      quote: {
+        quoteId: quote.quoteId,
+        inputAmount: quote.inputAmount,
+        inputCurrency: quote.inputCurrency,
+        outputAmount: quote.outputAmount,
+        outputCurrency: quote.outputCurrency,
+        exchangeRate: quote.exchangeRate,
+        fees: quote.fees,
+        estimatedTime: quote.estimatedTime,
+        validUntil: quote.validUntil.toISOString(),
+        corridor: quote.corridor,
+        complianceRequired: quote.complianceRequired
+      }
+    });
+    
+  } catch (error) {
+    console.error('Quote fetch error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch quote' 
+    });
+  }
+});
 
 // Supported Corridors
 app.get('/api/corridors', (req, res) => {
   res.json({
+    success: true,
     corridors: [
       {
         from: 'USD',
@@ -117,7 +236,8 @@ app.get('/api/corridors', (req, res) => {
         status: 'active',
         estimatedTime: '2-5 minutes',
         minAmount: 1,
-        maxAmount: 10000
+        maxAmount: 10000,
+        feePercentage: 1.5
       },
       {
         from: 'USD',
@@ -126,7 +246,8 @@ app.get('/api/corridors', (req, res) => {
         status: 'coming_soon',
         estimatedTime: '5-10 minutes',
         minAmount: 1,
-        maxAmount: 5000
+        maxAmount: 5000,
+        feePercentage: 2.0
       },
       {
         from: 'GBP',
@@ -135,7 +256,8 @@ app.get('/api/corridors', (req, res) => {
         status: 'coming_soon',
         estimatedTime: '5-10 minutes',
         minAmount: 1,
-        maxAmount: 5000
+        maxAmount: 5000,
+        feePercentage: 2.0
       }
     ]
   });
@@ -149,6 +271,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   const isDevelopment = process.env.NODE_ENV === 'development';
   
   res.status(err.status || 500).json({ 
+    success: false,
     error: isDevelopment ? err.message : 'Internal server error',
     ...(isDevelopment && { stack: err.stack })
   });
@@ -157,11 +280,16 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ 
+    success: false,
     error: 'Endpoint not found',
     available_endpoints: [
       'GET /health',
       'GET /api/status',
+      'POST /api/auth/register',
+      'POST /api/auth/login',
+      'GET /api/auth/profile',
       'POST /api/payments/quote',
+      'GET /api/payments/quote/:quoteId',
       'GET /api/corridors'
     ]
   });
@@ -170,9 +298,11 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Starling Remittance API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔐 User registration: POST http://localhost:${PORT}/api/auth/register`);
   console.log(`💰 Payment quote: POST http://localhost:${PORT}/api/payments/quote`);
   console.log(`🌍 Corridors: GET http://localhost:${PORT}/api/corridors`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV}`);
+  console.log(`💾 Database: Supabase`);
 });
 
 export default app;
