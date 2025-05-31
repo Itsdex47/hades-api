@@ -5,13 +5,25 @@ export class SupabaseService {
   private supabase: SupabaseClient;
 
   constructor() {
+    // Debug environment variables
+    console.log('🔍 Checking Supabase environment variables...');
+    console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
+    console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing Supabase environment variables');
+      console.error('❌ Missing Supabase environment variables:');
+      console.error('SUPABASE_URL:', supabaseUrl ? 'PROVIDED' : 'MISSING');
+      console.error('SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? 'PROVIDED' : 'MISSING');
+      console.error('Current working directory:', process.cwd());
+      console.error('NODE_ENV:', process.env.NODE_ENV);
+      
+      throw new Error('Missing Supabase environment variables. Please check your .env file.');
     }
 
+    console.log('✅ Supabase environment variables loaded successfully');
     this.supabase = createClient(supabaseUrl, supabaseServiceKey);
   }
 
