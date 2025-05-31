@@ -2,82 +2,173 @@ import express from 'express';
 import PaymentProcessor from '../services/paymentProcessor';
 import SupabaseService from '../services/supabase';
 import { authenticateToken } from './auth';
+import { Quote } from '../types/payment';
 
 const router = express.Router();
+
+// Debug logging
+console.log('🔧 Loading payments routes...');
+
 const paymentProcessor = new PaymentProcessor();
 const supabaseService = new SupabaseService();
 
-// Process a payment (initiate the payment pipeline)
-router.post('/process', authenticateToken, async (req: express.Request, res: express.Response) => {
+// Payment Quote Endpoint (saves to database)
+router.post('/quote', async (req: express.Request, res: express.Response) => {
+  console.log('📝 Quote endpoint hit');
   try {
-    const userId = (req as any).user.userId;
-    const { 
-      quoteId, 
-      recipientDetails, 
-      purpose, 
-      reference 
-    } = req.body;
-
-    // Validation
-    if (!quoteId) {
-      res.status(400).json({ 
-        success: false, 
-        error: 'Quote ID is required' 
-      });
+    const { amount, fromCurrency = 'USD', toCurrency = 'MXN', recipientCountry } = req.body;
+    
+    // Basic validation
+    if (!amount || amount <= 0) {
+      res.status(400).json({ error: 'Invalid amount' });
       return;
     }
-
-    if (!recipientDetails || !recipientDetails.firstName || !recipientDetails.lastName) {
-      res.status(400).json({ 
-        success: false, 
-        error: 'Recipient details (firstName, lastName) are required' 
-      });
+    
+    if (amount > (process.env.MAX_TRANSACTION_AMOUNT_USD ? parseInt(process.env.MAX_TRANSACTION_AMOUNT_USD) : 10000)) {
+      res.status(400).json({ error: 'Amount exceeds maximum limit' });
       return;
     }
-
-    if (!recipientDetails.bankAccount || !recipientDetails.bankAccount.accountNumber) {
-      res.status(400).json({ 
-        success: false, 
-        error: 'Recipient bank account details are required' 
-      });
-      return;
-    }
-
-    console.log(`💳 Processing payment for user ${userId}, quote ${quoteId}`);
-
-    // Process the payment
-    const payment = await paymentProcessor.processPayment({
+    
+    // Simple quote calculation (you'll replace with real rates)
+    const exchangeRates: Record<string, number> = {
+      'USD-MXN': 18.5,
+      'USD-NGN': 760,
+      'USD-PHP': 56,
+      'GBP-NGN': 950
+    };
+    
+    const rateKey = `${fromCurrency}-${toCurrency}`;
+    const exchangeRate = exchangeRates[rateKey] || 1;
+    
+    // Fee structure
+    const starlingFeePercent = 0.015; // 1.5%
+    const starlingFee = amount * starlingFeePercent;
+    const blockchainFee = 0.01; // Very low on Solana
+    const totalFees = starlingFee + blockchainFee;
+    
+    const amountAfterFees = amount - totalFees;
+    const recipientAmount = parseFloat((amountAfterFees * exchangeRate).toFixed(2));
+    
+    const quoteId = `quote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const validUntil = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    
+    // Create quote object
+    const quote: Quote = {
       quoteId,
-      senderId: userId,
-      recipientDetails,
-      purpose,
-      reference
-    });
-
-    res.status(202).json({
+      inputAmount: amount,
+      inputCurrency: fromCurrency,
+      outputAmount: recipientAmount,
+      outputCurrency: toCurrency,
+      exchangeRate,
+      fees: {
+        starlingFee: parseFloat(starlingFee.toFixed(2)),
+        starlingFeePercent,
+        blockchainFee,
+        fxSpread: 0,
+        partnerFee: 0,
+        totalFeeUSD: parseFloat(totalFees.toFixed(2))
+      },
+      estimatedTime: '2-5 minutes',
+      validUntil,
+      corridor: rateKey,
+      complianceRequired: amount > 1000, // KYC required for amounts > $1000
+      createdAt: new Date()
+    };
+    
+    // Save quote to database
+    try {
+      await supabaseService.saveQuote(quote);
+      console.log('💾 Quote saved to database:', quote.quoteId);
+    } catch (dbError) {
+      console.error('Failed to save quote to database:', dbError);
+      // Continue without failing the request - quote generation is more important
+    }
+    
+    res.json({
       success: true,
-      message: 'Payment processing initiated',
-      data: {
-        paymentId: payment.id,
-        status: payment.status,
-        estimatedCompletionTime: payment.estimatedCompletionTime,
-        steps: payment.steps,
-        trackingReference: payment.id
+      quote: {
+        quoteId: quote.quoteId,
+        inputAmount: quote.inputAmount,
+        inputCurrency: quote.inputCurrency,
+        outputAmount: quote.outputAmount,
+        outputCurrency: quote.outputCurrency,
+        exchangeRate: quote.exchangeRate,
+        fees: {
+          starlingFee: quote.fees.starlingFee,
+          blockchainFee: quote.fees.blockchainFee,
+          totalFees: quote.fees.totalFeeUSD,
+          feePercentage: starlingFeePercent * 100
+        },
+        estimatedTime: quote.estimatedTime,
+        validUntil: quote.validUntil.toISOString(),
+        corridor: quote.corridor,
+        complianceRequired: quote.complianceRequired
       }
     });
-
+    
   } catch (error) {
-    console.error('Payment processing error:', error);
+    console.error('Quote generation error:', error);
     res.status(500).json({ 
-      success: false, 
-      error: 'Payment processing failed',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      success: false,
+      error: 'Failed to generate quote' 
+    });
+  }
+});
+
+// Get quote by ID
+router.get('/quote/:quoteId', async (req: express.Request, res: express.Response) => {
+  console.log('🔍 Get quote endpoint hit');
+  try {
+    const { quoteId } = req.params;
+    
+    const quote = await supabaseService.getQuoteById(quoteId);
+    
+    if (!quote) {
+      res.status(404).json({ 
+        success: false,
+        error: 'Quote not found or expired' 
+      });
+      return;
+    }
+    
+    // Check if quote is still valid
+    if (new Date() > quote.validUntil) {
+      res.status(410).json({ 
+        success: false,
+        error: 'Quote has expired' 
+      });
+      return;
+    }
+    
+    res.json({
+      success: true,
+      quote: {
+        quoteId: quote.quoteId,
+        inputAmount: quote.inputAmount,
+        inputCurrency: quote.inputCurrency,
+        outputAmount: quote.outputAmount,
+        outputCurrency: quote.outputCurrency,
+        exchangeRate: quote.exchangeRate,
+        fees: quote.fees,
+        estimatedTime: quote.estimatedTime,
+        validUntil: quote.validUntil.toISOString(),
+        corridor: quote.corridor,
+        complianceRequired: quote.complianceRequired
+      }
+    });
+    
+  } catch (error) {
+    console.error('Quote fetch error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch quote' 
     });
   }
 });
 
 // DEMO: Process a payment with auto-generated quote
 router.post('/demo', authenticateToken, async (req: express.Request, res: express.Response) => {
+  console.log('🎮 Demo endpoint hit!');
   try {
     const userId = (req as any).user.userId;
     const { 
@@ -187,8 +278,79 @@ router.post('/demo', authenticateToken, async (req: express.Request, res: expres
   }
 });
 
+// Process a payment (initiate the payment pipeline)
+router.post('/process', authenticateToken, async (req: express.Request, res: express.Response) => {
+  console.log('🔄 Process payment endpoint hit');
+  try {
+    const userId = (req as any).user.userId;
+    const { 
+      quoteId, 
+      recipientDetails, 
+      purpose, 
+      reference 
+    } = req.body;
+
+    // Validation
+    if (!quoteId) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'Quote ID is required' 
+      });
+      return;
+    }
+
+    if (!recipientDetails || !recipientDetails.firstName || !recipientDetails.lastName) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'Recipient details (firstName, lastName) are required' 
+      });
+      return;
+    }
+
+    if (!recipientDetails.bankAccount || !recipientDetails.bankAccount.accountNumber) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'Recipient bank account details are required' 
+      });
+      return;
+    }
+
+    console.log(`💳 Processing payment for user ${userId}, quote ${quoteId}`);
+
+    // Process the payment
+    const payment = await paymentProcessor.processPayment({
+      quoteId,
+      senderId: userId,
+      recipientDetails,
+      purpose,
+      reference
+    });
+
+    res.status(202).json({
+      success: true,
+      message: 'Payment processing initiated',
+      data: {
+        paymentId: payment.id,
+        status: payment.status,
+        estimatedCompletionTime: payment.estimatedCompletionTime,
+        steps: payment.steps,
+        trackingReference: payment.id
+      }
+    });
+
+  } catch (error) {
+    console.error('Payment processing error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Payment processing failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Get payment status
 router.get('/status/:paymentId', authenticateToken, async (req: express.Request, res: express.Response) => {
+  console.log('📊 Status endpoint hit');
   try {
     const userId = (req as any).user.userId;
     const { paymentId } = req.params;
@@ -263,6 +425,7 @@ router.get('/status/:paymentId', authenticateToken, async (req: express.Request,
 
 // Get user's payment history
 router.get('/history', authenticateToken, async (req: express.Request, res: express.Response) => {
+  console.log('📚 History endpoint hit');
   try {
     const userId = (req as any).user.userId;
     const payments = await paymentProcessor.getUserPayments(userId);
@@ -311,6 +474,7 @@ router.get('/history', authenticateToken, async (req: express.Request, res: expr
 
 // Cancel a payment (only if still in early stages)
 router.post('/cancel/:paymentId', authenticateToken, async (req: express.Request, res: express.Response) => {
+  console.log('❌ Cancel endpoint hit');
   try {
     const userId = (req as any).user.userId;
     const { paymentId } = req.params;
@@ -369,6 +533,7 @@ router.post('/cancel/:paymentId', authenticateToken, async (req: express.Request
 
 // Get payment processor health check
 router.get('/health', async (req: express.Request, res: express.Response) => {
+  console.log('🏥 Health endpoint hit');
   try {
     const health = await paymentProcessor.healthCheck();
     
@@ -392,5 +557,7 @@ router.get('/health', async (req: express.Request, res: express.Response) => {
     });
   }
 });
+
+console.log('✅ Payment routes loaded successfully');
 
 export default router;
