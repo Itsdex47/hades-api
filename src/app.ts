@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import path from 'path';
 import authRoutes from './routes/auth';
+import paymentsRoutes from './routes/payments';
 import SupabaseService from './services/supabase';
 import { Quote } from './types/payment';
 
@@ -47,6 +48,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/payments', paymentsRoutes);
 
 // Health check (now includes database check)
 app.get('/health', async (req, res) => {
@@ -311,6 +313,11 @@ app.use((req, res) => {
       'GET /api/auth/profile',
       'POST /api/payments/quote',
       'GET /api/payments/quote/:quoteId',
+      'POST /api/payments/process',
+      'POST /api/payments/demo',
+      'GET /api/payments/status/:paymentId',
+      'GET /api/payments/history',
+      'GET /api/payments/health',
       'GET /api/corridors'
     ]
   });
@@ -321,6 +328,7 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 User registration: POST http://localhost:${PORT}/api/auth/register`);
   console.log(`💰 Payment quote: POST http://localhost:${PORT}/api/payments/quote`);
+  console.log(`🎮 Demo payment: POST http://localhost:${PORT}/api/payments/demo`);
   console.log(`🌍 Corridors: GET http://localhost:${PORT}/api/corridors`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV}`);
   console.log(`💾 Database: Supabase`);
