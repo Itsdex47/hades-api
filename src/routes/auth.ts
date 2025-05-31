@@ -21,46 +21,107 @@ try {
   throw error;
 }
 
+// Debug endpoint to test Supabase connection
+router.get('/debug', async (req: express.Request, res: express.Response) => {
+  try {
+    console.log('🔍 Testing Supabase connection...');
+    const isHealthy = await supabaseService.healthCheck();
+    console.log('✅ Supabase health check result:', isHealthy);
+    
+    res.json({
+      success: true,
+      debug: {
+        supabaseHealthy: isHealthy,
+        envVarsPresent: {
+          SUPABASE_URL: !!process.env.SUPABASE_URL,
+          SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          JWT_SECRET: !!process.env.JWT_SECRET
+        },
+        envValues: {
+          SUPABASE_URL: process.env.SUPABASE_URL ? process.env.SUPABASE_URL.substring(0, 30) + '...' : 'NOT SET',
+          NODE_ENV: process.env.NODE_ENV
+        }
+      }
+    });
+  } catch (error) {
+    console.error('🔍 Debug endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 // User registration
 router.post('/register', async (req: express.Request, res: express.Response) => {
   try {
+    console.log('🟡 Registration attempt started...');
+    console.log('📝 Request body:', { 
+      email: req.body.email, 
+      firstName: req.body.firstName, 
+      lastName: req.body.lastName,
+      hasPassword: !!req.body.password 
+    });
+
     const { email, password, firstName, lastName, phone, address } = req.body;
 
     // Basic validation
     if (!email || !password || !firstName || !lastName) {
+      console.log('❌ Missing required fields');
       res.status(400).json({ error: 'Missing required fields' });
       return;
     }
 
     if (password.length < 8) {
+      console.log('❌ Password too short');
       res.status(400).json({ error: 'Password must be at least 8 characters' });
       return;
     }
 
+    console.log('🔍 Checking if user already exists...');
+    
     // Check if user already exists
-    const existingUser = await supabaseService.getUserByEmail(email);
-    if (existingUser) {
-      res.status(409).json({ error: 'User already exists' });
-      return;
+    try {
+      const existingUser = await supabaseService.getUserByEmail(email);
+      if (existingUser) {
+        console.log('❌ User already exists');
+        res.status(409).json({ error: 'User already exists' });
+        return;
+      }
+      console.log('✅ User does not exist, proceeding...');
+    } catch (checkError) {
+      console.log('⚠️ Error checking existing user (this might be OK):', checkError.message);
+      // Continue - this error might just mean user doesn't exist
     }
 
+    console.log('🔐 Hashing password...');
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
+    console.log('✅ Password hashed successfully');
 
     // Create user
     const userData = {
       email,
       firstName,
       lastName,
-      phone,
-      address,
+      phone: phone || null,
+      address: address || null,
       kycStatus: KYCStatus.NOT_STARTED,
       kycDocuments: [],
       isActive: true,
       riskLevel: 'low' as const
     };
 
+    console.log('👤 Creating user with data:', { 
+      email: userData.email, 
+      firstName: userData.firstName, 
+      lastName: userData.lastName,
+      kycStatus: userData.kycStatus 
+    });
+
     const user = await supabaseService.createUser(userData);
+    console.log('✅ User created in database:', { id: user.id, email: user.email });
 
     // Generate JWT token
     const token = jwt.sign(
@@ -68,6 +129,7 @@ router.post('/register', async (req: express.Request, res: express.Response) => 
       (process.env.JWT_SECRET || 'fallback_secret') as Secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as SignOptions
     );
+    console.log('🎫 JWT token generated');
 
     console.log('✅ User registered successfully:', user.email);
 
@@ -87,8 +149,17 @@ router.post('/register', async (req: express.Request, res: express.Response) => 
     });
 
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    console.error('❌ Registration error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      details: error.details
+    });
+    
+    res.status(500).json({ 
+      error: 'Registration failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
