@@ -44,17 +44,19 @@ app.get('/api/status', (req, res) => {
 });
 
 // Payment Quote Endpoint (MVP)
-app.post('/api/payments/quote', (req, res) => {
+app.post('/api/payments/quote', (req: express.Request, res: express.Response) => {
   try {
     const { amount, fromCurrency = 'USD', toCurrency = 'MXN', recipientCountry } = req.body;
     
     // Basic validation
     if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'Invalid amount' });
+      res.status(400).json({ error: 'Invalid amount' });
+      return;
     }
     
     if (amount > (process.env.MAX_TRANSACTION_AMOUNT_USD ? parseInt(process.env.MAX_TRANSACTION_AMOUNT_USD) : 10000)) {
-      return res.status(400).json({ error: 'Amount exceeds maximum limit' });
+      res.status(400).json({ error: 'Amount exceeds maximum limit' });
+      return;
     }
     
     // Simple quote calculation (you'll replace with real rates)
