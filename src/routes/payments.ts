@@ -218,7 +218,7 @@ router.post('/demo', authenticateToken, async (req: express.Request, res: expres
       },
       estimatedTime: '2-5 minutes',
       validUntil: new Date(Date.now() + 10 * 60 * 1000),
-      corridor: 'US_TO_MEXICO',
+      corridor: 'USD-MXN', // Changed from 'US_TO_MEXICO' to fit within 10 character limit
       complianceRequired: false,
       createdAt: new Date()
     };
