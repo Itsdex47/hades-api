@@ -190,4 +190,135 @@ export class SupabaseService {
   }
 
   // Quote Management
-  async saveQuote(quoteData: Quote): Promise<void> {\n    const { error } = await this.supabase\n      .from('quotes')\n      .insert([{\n        quote_id: quoteData.quoteId,\n        input_amount: quoteData.inputAmount,\n        input_currency: quoteData.inputCurrency,\n        output_amount: quoteData.outputAmount,\n        output_currency: quoteData.outputCurrency,\n        exchange_rate: quoteData.exchangeRate,\n        fees: quoteData.fees,\n        estimated_time: quoteData.estimatedTime,\n        valid_until: quoteData.validUntil,\n        corridor: quoteData.corridor,\n        compliance_required: quoteData.complianceRequired,\n        created_at: quoteData.createdAt\n      }]);\n\n    if (error) {\n      throw new Error(`Failed to save quote: ${error.message}`);\n    }\n  }\n\n  async getQuoteById(quoteId: string): Promise<Quote | null> {\n    const { data, error } = await this.supabase\n      .from('quotes')\n      .select('*')\n      .eq('quote_id', quoteId)\n      .single();\n\n    if (error) {\n      if (error.code === 'PGRST116') return null; // Not found\n      throw new Error(`Failed to get quote: ${error.message}`);\n    }\n\n    return this.mapDbQuoteToQuote(data);\n  }\n\n  // Compliance Management\n  async createComplianceRecord(userId: string, paymentId: string, complianceData: any): Promise<void> {\n    const { error } = await this.supabase\n      .from('compliance_records')\n      .insert([{\n        user_id: userId,\n        payment_id: paymentId,\n        compliance_data: complianceData,\n        created_at: new Date().toISOString()\n      }]);\n\n    if (error) {\n      throw new Error(`Failed to create compliance record: ${error.message}`);\n    }\n  }\n\n  // Health Check\n  async healthCheck(): Promise<boolean> {\n    try {\n      const { data, error } = await this.supabase\n        .from('users')\n        .select('count')\n        .limit(1);\n      \n      return !error;\n    } catch (error) {\n      return false;\n    }\n  }\n\n  // Helper methods to map database objects to our types\n  private mapDbUserToUser(dbUser: any): User {\n    return {\n      id: dbUser.id,\n      email: dbUser.email,\n      firstName: dbUser.first_name,        // snake_case -> camelCase\n      lastName: dbUser.last_name,          // snake_case -> camelCase\n      phone: dbUser.phone,\n      address: dbUser.address,\n      kycStatus: dbUser.kyc_status,        // snake_case -> camelCase\n      kycDocuments: dbUser.kyc_documents || [], // snake_case -> camelCase\n      createdAt: new Date(dbUser.created_at),   // snake_case -> camelCase\n      updatedAt: new Date(dbUser.updated_at),   // snake_case -> camelCase\n      isActive: dbUser.is_active,          // snake_case -> camelCase\n      riskLevel: dbUser.risk_level         // snake_case -> camelCase\n    };\n  }\n\n  private mapDbPaymentToPayment(dbPayment: any): Payment {\n    return {\n      id: dbPayment.id,\n      quoteId: dbPayment.quote_id,\n      request: {\n        senderId: dbPayment.sender_id,\n        recipientId: dbPayment.recipient_id,\n        amountUSD: dbPayment.amount_usd,\n        fromCurrency: dbPayment.from_currency,\n        toCurrency: dbPayment.to_currency,\n        recipientDetails: dbPayment.recipient_details,\n        purpose: dbPayment.purpose,\n        reference: dbPayment.reference\n      },\n      steps: dbPayment.steps || [],\n      blockchain: dbPayment.blockchain_details || {},\n      fiat: dbPayment.fiat_details || {},\n      fees: dbPayment.fees || {},\n      status: dbPayment.status,\n      compliance: dbPayment.compliance_check || {},\n      createdAt: new Date(dbPayment.created_at),\n      updatedAt: new Date(dbPayment.updated_at),\n      completedAt: dbPayment.completed_at ? new Date(dbPayment.completed_at) : undefined,\n      estimatedCompletionTime: new Date(dbPayment.estimated_completion_time)\n    };\n  }\n\n  private mapDbQuoteToQuote(dbQuote: any): Quote {\n    return {\n      quoteId: dbQuote.quote_id,\n      inputAmount: dbQuote.input_amount,\n      inputCurrency: dbQuote.input_currency,\n      outputAmount: dbQuote.output_amount,\n      outputCurrency: dbQuote.output_currency,\n      exchangeRate: dbQuote.exchange_rate,\n      fees: dbQuote.fees,\n      estimatedTime: dbQuote.estimated_time,\n      validUntil: new Date(dbQuote.valid_until),\n      corridor: dbQuote.corridor,\n      complianceRequired: dbQuote.compliance_required,\n      createdAt: new Date(dbQuote.created_at)\n    };\n  }\n}\n\nexport default SupabaseService;
+  async saveQuote(quoteData: Quote): Promise<void> {
+    const { error } = await this.supabase
+      .from('quotes')
+      .insert([{
+        quote_id: quoteData.quoteId,
+        input_amount: quoteData.inputAmount,
+        input_currency: quoteData.inputCurrency,
+        output_amount: quoteData.outputAmount,
+        output_currency: quoteData.outputCurrency,
+        exchange_rate: quoteData.exchangeRate,
+        fees: quoteData.fees,
+        estimated_time: quoteData.estimatedTime,
+        valid_until: quoteData.validUntil,
+        corridor: quoteData.corridor,
+        compliance_required: quoteData.complianceRequired,
+        created_at: quoteData.createdAt
+      }]);
+
+    if (error) {
+      throw new Error(`Failed to save quote: ${error.message}`);
+    }
+  }
+
+  async getQuoteById(quoteId: string): Promise<Quote | null> {
+    const { data, error } = await this.supabase
+      .from('quotes')
+      .select('*')
+      .eq('quote_id', quoteId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      throw new Error(`Failed to get quote: ${error.message}`);
+    }
+
+    return this.mapDbQuoteToQuote(data);
+  }
+
+  // Compliance Management
+  async createComplianceRecord(userId: string, paymentId: string, complianceData: any): Promise<void> {
+    const { error } = await this.supabase
+      .from('compliance_records')
+      .insert([{
+        user_id: userId,
+        payment_id: paymentId,
+        compliance_data: complianceData,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (error) {
+      throw new Error(`Failed to create compliance record: ${error.message}`);
+    }
+  }
+
+  // Health Check
+  async healthCheck(): Promise<boolean> {
+    try {
+      const { data, error } = await this.supabase
+        .from('users')
+        .select('count')
+        .limit(1);
+      
+      return !error;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // Helper methods to map database objects to our types
+  private mapDbUserToUser(dbUser: any): User {
+    return {
+      id: dbUser.id,
+      email: dbUser.email,
+      firstName: dbUser.first_name,        // snake_case -> camelCase
+      lastName: dbUser.last_name,          // snake_case -> camelCase
+      phone: dbUser.phone,
+      address: dbUser.address,
+      kycStatus: dbUser.kyc_status,        // snake_case -> camelCase
+      kycDocuments: dbUser.kyc_documents || [], // snake_case -> camelCase
+      createdAt: new Date(dbUser.created_at),   // snake_case -> camelCase
+      updatedAt: new Date(dbUser.updated_at),   // snake_case -> camelCase
+      isActive: dbUser.is_active,          // snake_case -> camelCase
+      riskLevel: dbUser.risk_level         // snake_case -> camelCase
+    };
+  }
+
+  private mapDbPaymentToPayment(dbPayment: any): Payment {
+    return {
+      id: dbPayment.id,
+      quoteId: dbPayment.quote_id,
+      request: {
+        senderId: dbPayment.sender_id,
+        recipientId: dbPayment.recipient_id,
+        amountUSD: dbPayment.amount_usd,
+        fromCurrency: dbPayment.from_currency,
+        toCurrency: dbPayment.to_currency,
+        recipientDetails: dbPayment.recipient_details,
+        purpose: dbPayment.purpose,
+        reference: dbPayment.reference
+      },
+      steps: dbPayment.steps || [],
+      blockchain: dbPayment.blockchain_details || {},
+      fiat: dbPayment.fiat_details || {},
+      fees: dbPayment.fees || {},
+      status: dbPayment.status,
+      compliance: dbPayment.compliance_check || {},
+      createdAt: new Date(dbPayment.created_at),
+      updatedAt: new Date(dbPayment.updated_at),
+      completedAt: dbPayment.completed_at ? new Date(dbPayment.completed_at) : undefined,
+      estimatedCompletionTime: new Date(dbPayment.estimated_completion_time)
+    };
+  }
+
+  private mapDbQuoteToQuote(dbQuote: any): Quote {
+    return {
+      quoteId: dbQuote.quote_id,
+      inputAmount: dbQuote.input_amount,
+      inputCurrency: dbQuote.input_currency,
+      outputAmount: dbQuote.output_amount,
+      outputCurrency: dbQuote.output_currency,
+      exchangeRate: dbQuote.exchange_rate,
+      fees: dbQuote.fees,
+      estimatedTime: dbQuote.estimated_time,
+      validUntil: new Date(dbQuote.valid_until),
+      corridor: dbQuote.corridor,
+      complianceRequired: dbQuote.compliance_required,
+      createdAt: new Date(dbQuote.created_at)
+    };
+  }
+}
+
+export default SupabaseService;
