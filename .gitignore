@@ -111,3 +111,5 @@ logs
 # Temporary folders
 tmp/
 temp/
+.env.example
+.env.example
