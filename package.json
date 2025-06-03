@@ -1,7 +1,7 @@
 {
   "name": "starling-remittance-api",
-  "version": "0.1.0",
-  "description": "Cross-border remittance infrastructure using blockchain rails for emerging markets",
+  "version": "0.2.0",
+  "description": "Multi-rail cross-border remittance infrastructure with blockchain and traditional payment rails",
   "main": "dist/app.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/app.ts",
@@ -11,7 +11,10 @@
     "generate-wallet": "ts-node scripts/generateWallet.ts",
     "check-balance": "ts-node scripts/checkBalance.ts",
     "demo-payment": "ts-node scripts/demoPayment.ts",
-    "setup": "chmod +x setup.sh && ./setup.sh"
+    "setup": "chmod +x setup.sh && ./setup.sh",
+    "setup-apis": "ts-node scripts/setupApis.ts",
+    "test-rails": "ts-node scripts/testPaymentRails.ts",
+    "compliance-check": "ts-node scripts/complianceCheck.ts"
   },
   "keywords": [
     "fintech",
@@ -20,13 +23,18 @@
     "blockchain",
     "remittance",
     "stablecoin",
-    "emerging-markets"
+    "emerging-markets",
+    "multi-rail",
+    "compliance",
+    "kyc",
+    "aml"
   ],
   "author": "Starling Labs",
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
-    "@solana/spl-token": "^0.1.8",
+    "@circle-fin/circle-sdk": "^1.3.0",
+    "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
     "@supabase/supabase-js": "^2.24.0",
     "@types/bcryptjs": "^2.4.2",
@@ -38,12 +46,15 @@
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
     "helmet": "^7.0.0",
     "jsonwebtoken": "^9.0.0",
     "morgan": "^1.10.0",
-    "stripe": "^18.2.1",
+    "stripe": "^14.9.0",
     "ts-node": "^10.9.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "winston": "^3.11.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/cors": "^2.8.13",
@@ -51,8 +62,34 @@
     "@types/morgan": "^1.9.4",
     "nodemon": "^3.1.10"
   },
+  "optionalDependencies": {
+    "alchemy-sdk": "^3.1.1",
+    "posthog-node": "^3.6.3",
+    "@sentry/node": "^7.81.1"
+  },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Itsdex47/starling-remittance-api.git"
+  },
+  "config": {
+    "rails": {
+      "stripe": "enabled",
+      "circle": "enabled", 
+      "solana": "enabled",
+      "hybrid": "enabled"
+    },
+    "compliance": {
+      "jumio": "enabled",
+      "elliptic": "enabled",
+      "cube": "enabled"
+    },
+    "monitoring": {
+      "sentry": "optional",
+      "posthog": "optional"
+    }
   }
 }
