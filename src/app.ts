@@ -62,15 +62,32 @@ app.get('/health', async (req, res) => {
   try {
     const dbHealthy = await supabaseService.healthCheck();
     
+    // Get comprehensive service health from payment processor
+    let paymentProcessorHealth;
+    try {
+      const PaymentProcessor = require('./services/paymentProcessor').default;
+      const processor = new PaymentProcessor();
+      paymentProcessorHealth = await processor.healthCheck();
+    } catch (error) {
+      console.warn('⚠️ Payment processor health check failed:', error);
+      paymentProcessorHealth = { overall: false, services: {} };
+    }
+    
+    const overallHealthy = dbHealthy && paymentProcessorHealth.overall;
+    
     res.json({ 
-      status: dbHealthy ? 'healthy' : 'degraded',
+      status: overallHealthy ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       service: 'Starling Remittance API',
       version: '0.1.0',
       environment: process.env.NODE_ENV,
       services: {
         database: dbHealthy ? 'connected' : 'disconnected',
-        api: 'running'
+        api: 'running',
+        paymentRails: {
+          overall: paymentProcessorHealth.overall,
+          ...paymentProcessorHealth.services
+        }
       }
     });
   } catch (error) {
@@ -78,7 +95,7 @@ app.get('/health', async (req, res) => {
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
       service: 'Starling Remittance API',
-      error: 'Database connection failed'
+      error: 'Service health check failed'
     });
   }
 });
