@@ -105,6 +105,28 @@ export class SupabaseService {
     }
   }
 
+  // Enhanced KYC management for new compliance features
+  async updateUserKyc(userReference: string, kycData: any): Promise<void> {
+    const { error } = await this.supabase
+      .from('users')
+      .update({
+        kyc_status: kycData.status,
+        kyc_verification_id: kycData.verificationId,
+        kyc_level: kycData.level,
+        kyc_submitted_at: kycData.submittedAt,
+        kyc_completed_at: kycData.completedAt,
+        kyc_failed_at: kycData.failedAt,
+        kyc_reject_reason: kycData.rejectReason,
+        jumio_scan_reference: kycData.jumioScanReference,
+        updated_at: new Date().toISOString()
+      })
+      .eq('email', userReference); // Using email as user reference
+
+    if (error) {
+      throw new Error(`Failed to update user KYC: ${error.message}`);
+    }
+  }
+
   // Payment Management
   async createPayment(paymentData: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Payment> {
     const { data, error } = await this.supabase
@@ -139,6 +161,34 @@ export class SupabaseService {
     return this.mapDbPaymentToPayment(data);
   }
 
+  // Enhanced payment creation for new multi-rail features
+  async createPayment(payment: any): Promise<any> {
+    const { data, error } = await this.supabase
+      .from('payments')
+      .insert([{
+        id: payment.id,
+        quote_id: payment.quoteId,
+        external_id: payment.externalId,
+        status: payment.status,
+        sender: payment.sender,
+        recipient: payment.recipient,
+        amount: payment.amount,
+        currency: payment.currency,
+        route: payment.route,
+        fees: payment.fees,
+        created_at: payment.createdAt,
+        updated_at: payment.updatedAt
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create payment: ${error.message}`);
+    }
+
+    return data;
+  }
+
   async getPaymentById(id: string): Promise<Payment | null> {
     const { data, error } = await this.supabase
       .from('payments')
@@ -154,7 +204,23 @@ export class SupabaseService {
     return this.mapDbPaymentToPayment(data);
   }
 
-  async updatePaymentStatus(paymentId: string, status: string, steps?: any[]): Promise<void> {
+  // Enhanced payment retrieval
+  async getPayment(paymentId: string): Promise<any> {
+    const { data, error } = await this.supabase
+      .from('payments')
+      .select('*')
+      .eq('id', paymentId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get payment: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async updatePaymentStatus(paymentId: string, status: string, steps?: any[], additionalData?: any): Promise<void> {
     const updateData: any = {
       status,
       updated_at: new Date().toISOString()
@@ -162,6 +228,10 @@ export class SupabaseService {
 
     if (steps) {
       updateData.steps = steps;
+    }
+
+    if (additionalData) {
+      Object.assign(updateData, additionalData);
     }
 
     const { error } = await this.supabase
@@ -213,7 +283,29 @@ export class SupabaseService {
     }
   }
 
-  // NEW: Create quote method that returns the created quote
+  // Enhanced quote storage for new features
+  async storeQuote(quote: any): Promise<void> {
+    const { error } = await this.supabase
+      .from('quotes')
+      .insert([{
+        quote_id: quote.quoteId,
+        from_currency: quote.fromCurrency,
+        to_currency: quote.toCurrency,
+        from_amount: quote.fromAmount,
+        to_amount: quote.toAmount,
+        exchange_rate: quote.exchangeRate,
+        fees: quote.fees,
+        route: quote.route,
+        compliance: quote.compliance,
+        validity: quote.validity,
+        created_at: quote.createdAt
+      }]);
+
+    if (error) {
+      throw new Error(`Failed to store quote: ${error.message}`);
+    }
+  }
+
   async createQuote(quoteData: any): Promise<{ id: string }> {
     const { data, error } = await this.supabase
       .from('quotes')
@@ -256,6 +348,75 @@ export class SupabaseService {
     return this.mapDbQuoteToQuote(data);
   }
 
+  // Enhanced quote retrieval
+  async getQuote(quoteId: string): Promise<any> {
+    const { data, error } = await this.supabase
+      .from('quotes')
+      .select('*')
+      .eq('quote_id', quoteId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get quote: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  // AML Management
+  async storeAmlResult(amlData: any): Promise<void> {
+    const { error } = await this.supabase
+      .from('aml_results')
+      .insert([{
+        wallet_address: amlData.walletAddress,
+        blockchain: amlData.blockchain,
+        risk_score: amlData.riskScore,
+        is_high_risk: amlData.isHighRisk,
+        recommendation: amlData.recommendation,
+        sanctions: amlData.sanctions,
+        risk_factors: amlData.riskFactors,
+        screened_at: amlData.screenedAt,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (error) {
+      throw new Error(`Failed to store AML result: ${error.message}`);
+    }
+  }
+
+  // Blockchain Transaction Management
+  async getTransactionByHash(transactionHash: string): Promise<any> {
+    const { data, error } = await this.supabase
+      .from('blockchain_transactions')
+      .select('*')
+      .eq('transaction_hash', transactionHash)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get transaction: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async updateTransactionStatus(transactionHash: string, status: string, updateData: any): Promise<void> {
+    const { error } = await this.supabase
+      .from('blockchain_transactions')
+      .update({
+        status,
+        block_number: updateData.blockNumber,
+        confirmations: updateData.confirmations,
+        updated_at: new Date().toISOString()
+      })
+      .eq('transaction_hash', transactionHash);
+
+    if (error) {
+      throw new Error(`Failed to update transaction status: ${error.message}`);
+    }
+  }
+
   // Compliance Management
   async createComplianceRecord(userId: string, paymentId: string, complianceData: any): Promise<void> {
     const { error } = await this.supabase
@@ -270,6 +431,52 @@ export class SupabaseService {
     if (error) {
       throw new Error(`Failed to create compliance record: ${error.message}`);
     }
+  }
+
+  // Enhanced compliance tracking
+  async trackComplianceEvent(eventType: string, eventData: any): Promise<void> {
+    const { error } = await this.supabase
+      .from('compliance_events')
+      .insert([{
+        event_type: eventType,
+        event_data: eventData,
+        timestamp: new Date().toISOString()
+      }]);
+
+    if (error) {
+      throw new Error(`Failed to track compliance event: ${error.message}`);
+    }
+  }
+
+  // System Metrics
+  async getSystemMetrics(timeframe: string = '24h'): Promise<any> {
+    const hoursBack = timeframe === '24h' ? 24 : 168; // 24h or 7d
+    const cutoff = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
+
+    const [paymentsResult, usersResult, complianceResult] = await Promise.all([
+      this.supabase
+        .from('payments')
+        .select('status, amount, created_at')
+        .gte('created_at', cutoff.toISOString()),
+      
+      this.supabase
+        .from('users')
+        .select('kyc_status, created_at')
+        .gte('created_at', cutoff.toISOString()),
+      
+      this.supabase
+        .from('compliance_events')
+        .select('event_type, timestamp')
+        .gte('timestamp', cutoff.toISOString())
+    ]);
+
+    return {
+      payments: paymentsResult.data || [],
+      users: usersResult.data || [],
+      compliance: complianceResult.data || [],
+      timeframe,
+      generatedAt: new Date().toISOString()
+    };
   }
 
   // Health Check
