@@ -1,7 +1,7 @@
 {
-  "name": "starling-remittance-api",
+  "name": "hades-api",
   "version": "0.2.0",
-  "description": "Multi-rail cross-border remittance infrastructure with blockchain and traditional payment rails",
+  "description": "H.A.D.E.S. - Hyper-Automated Digital Exchange System: Multi-rail cross-border payment infrastructure with blockchain and traditional rails",
   "main": "dist/app.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/app.ts",
@@ -17,6 +17,9 @@
     "compliance-check": "ts-node scripts/complianceCheck.ts"
   },
   "keywords": [
+    "hades",
+    "hyper-automated",
+    "digital-exchange",
     "fintech",
     "cross-border",
     "payments",
@@ -27,9 +30,10 @@
     "multi-rail",
     "compliance",
     "kyc",
-    "aml"
+    "aml",
+    "automation"
   ],
-  "author": "Starling Labs",
+  "author": "H.A.D.E.S. Labs",
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
@@ -76,7 +80,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Itsdex47/starling-remittance-api.git"
+    "url": "https://github.com/Itsdex47/hades-api.git"
   },
   "config": {
     "rails": {
