@@ -8,12 +8,8 @@ import {
 } from '@solana/web3.js';
 import {
   TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddressSync,
-  createAssociatedTokenAccountInstruction,
-  createTransferInstruction,
-  getAccount,
-  TokenAccountNotFoundError,
-  TokenInvalidAccountOwnerError,
+  Token,
+  AccountLayout,
 } from '@solana/spl-token';
 
 export interface SolanaTransferRequest {
@@ -70,19 +66,26 @@ export class SolanaService {
   async getUSDCBalance(address: string): Promise<number> {
     try {
       const publicKey = new PublicKey(address);
-      const tokenAccount = getAssociatedTokenAddressSync(
+      const token = new Token(
+        this.connection,
         this.usdcMintAddress,
-        publicKey
+        TOKEN_PROGRAM_ID,
+        Keypair.generate() // dummy keypair for read operations
       );
 
-      const accountInfo = await getAccount(this.connection, tokenAccount);
-      // USDC has 6 decimal places
-      return Number(accountInfo.amount) / Math.pow(10, 6);
-    } catch (error) {
-      if (error instanceof TokenAccountNotFoundError) {
+      const tokenAccounts = await this.connection.getTokenAccountsByOwner(publicKey, {
+        mint: this.usdcMintAddress
+      });
+
+      if (tokenAccounts.value.length === 0) {
         console.log('ℹ️ USDC token account not found, balance is 0');
         return 0;
       }
+
+      const accountInfo = AccountLayout.decode(tokenAccounts.value[0].account.data);
+      // USDC has 6 decimal places
+      return Number(accountInfo.amount) / Math.pow(10, 6);
+    } catch (error) {
       console.error('❌ Failed to get USDC balance:', error);
       throw new Error(`Failed to get USDC balance: ${this.getErrorMessage(error)}`);
     }
@@ -99,68 +102,34 @@ export class SolanaService {
       const fromKeypair = this.parseWallet(request.fromWallet);
       const toPublicKey = new PublicKey(request.toAddress);
 
-      // Get associated token accounts
-      const fromTokenAccount = getAssociatedTokenAddressSync(
+      // Create token instance
+      const token = new Token(
+        this.connection,
         this.usdcMintAddress,
-        fromKeypair.publicKey
+        TOKEN_PROGRAM_ID,
+        fromKeypair
       );
 
-      const toTokenAccount = getAssociatedTokenAddressSync(
-        this.usdcMintAddress,
-        toPublicKey
-      );
-
-      // Create transaction
-      const transaction = new Transaction();
-
-      // Check if recipient token account exists, create if not
-      try {
-        await getAccount(this.connection, toTokenAccount);
-        console.log('✅ Recipient token account exists');
-      } catch (error) {
-        if (error instanceof TokenAccountNotFoundError) {
-          console.log('🔧 Creating recipient token account...');
-          const createAccountInstruction = createAssociatedTokenAccountInstruction(
-            fromKeypair.publicKey, // payer
-            toTokenAccount,
-            toPublicKey, // owner
-            this.usdcMintAddress
-          );
-          transaction.add(createAccountInstruction);
-        } else {
-          throw error;
-        }
-      }
+      // Get or create associated token accounts
+      const fromTokenAccount = await token.getOrCreateAssociatedAccountInfo(fromKeypair.publicKey);
+      const toTokenAccount = await token.getOrCreateAssociatedAccountInfo(toPublicKey);
 
       // Convert amount to proper decimals (USDC has 6 decimal places)
       const transferAmount = Math.floor(request.amount * Math.pow(10, 6));
 
-      // Create transfer instruction
-      const transferInstruction = createTransferInstruction(
-        fromTokenAccount,
-        toTokenAccount,
-        fromKeypair.publicKey,
-        transferAmount,
-        [],
-        TOKEN_PROGRAM_ID
-      );
-
-      transaction.add(transferInstruction);
-
-      // Get recent blockhash
-      const { blockhash } = await this.connection.getLatestBlockhash();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = fromKeypair.publicKey;
-
       console.log('🔐 Signing and sending transaction...');
       
-      // Send and confirm transaction
-      const signature = await sendAndConfirmTransaction(
-        this.connection,
-        transaction,
-        [fromKeypair],
-        { commitment: 'confirmed' }
+      // Transfer tokens
+      const signature = await token.transfer(
+        fromTokenAccount.address,
+        toTokenAccount.address,
+        fromKeypair,
+        [],
+        transferAmount
       );
+
+      // Wait for confirmation
+      await this.connection.confirmTransaction(signature, 'confirmed');
 
       // Get transaction details
       const transactionDetails = await this.connection.getTransaction(signature, {

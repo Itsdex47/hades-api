@@ -162,7 +162,7 @@ export class SupabaseService {
   }
 
   // Enhanced payment creation for new multi-rail features
-  async createPayment(payment: any): Promise<any> {
+  async createEnhancedPayment(payment: any): Promise<any> {
     const { data, error } = await this.supabase
       .from('payments')
       .insert([{
@@ -205,7 +205,7 @@ export class SupabaseService {
   }
 
   // Enhanced payment retrieval
-  async getPayment(paymentId: string): Promise<any> {
+  async getEnhancedPayment(paymentId: string): Promise<any> {
     const { data, error } = await this.supabase
       .from('payments')
       .select('*')
@@ -349,7 +349,7 @@ export class SupabaseService {
   }
 
   // Enhanced quote retrieval
-  async getQuote(quoteId: string): Promise<any> {
+  async getEnhancedQuote(quoteId: string): Promise<any> {
     const { data, error } = await this.supabase
       .from('quotes')
       .select('*')

@@ -551,14 +551,14 @@ router.get('/health', async (req: express.Request, res: express.Response) => {
   try {
     const health = await paymentProcessor.healthCheck();
     
-    const allHealthy = Object.values(health).every(status => status === true);
+    const allHealthy = health.overall;
     
     res.status(allHealthy ? 200 : 503).json({
       success: allHealthy,
       services: {
-        circle: health.circle ? 'connected' : 'disconnected',
-        solana: health.solana ? 'connected' : 'disconnected',
-        supabase: health.supabase ? 'connected' : 'disconnected'
+        circle: health.services.circle ? 'connected' : 'disconnected',
+        solana: health.services.solana ? 'connected' : 'disconnected',
+        supabase: health.services.supabase ? 'connected' : 'disconnected'
       },
       status: allHealthy ? 'healthy' : 'degraded'
     });

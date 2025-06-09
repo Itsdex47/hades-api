@@ -191,4 +191,4 @@ const structuredLogger = {
   }
 };
 
-export default structuredLogger;
+export default logger;

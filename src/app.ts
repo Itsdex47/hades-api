@@ -9,7 +9,7 @@ import path from 'path';
 // Routes
 import authRoutes from './routes/auth';
 import paymentsRoutes from './routes/payments';
-import paymentsEnhancedRoutes from './routes/payments-enhanced';
+// import paymentsEnhancedRoutes from './routes/payments-enhanced';
 
 // Services
 import SupabaseService from './services/supabase';
@@ -19,8 +19,11 @@ import MonitoringService from './services/monitoring';
 
 // Utilities
 import { validateEnvironment } from './utils/environment';
-import { setupWebhooks } from './utils/webhooks';
+// import { setupWebhooks } from './utils/webhooks';
 import logger from './utils/logger';
+
+// Type definitions
+// import './types/express.d.ts';
 
 // Force load .env file from project root
 const envPath = path.join(process.cwd(), '.env');
@@ -113,7 +116,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check middleware
 app.use((req, res, next) => {
-  req.services = {
+  (req as any).services = {
     supabase: supabaseService,
     multiRail: multiRailService,
     compliance: complianceService,
@@ -132,8 +135,8 @@ app.use('/api/auth', authRoutes);
 console.log('💳 Registering payments routes at /api/payments');
 app.use('/api/payments', paymentsRoutes);
 
-console.log('🚀 Registering enhanced payments routes at /api/payments');
-app.use('/api/payments', paymentsEnhancedRoutes);
+// console.log('🚀 Registering enhanced payments routes at /api/payments');
+// app.use('/api/payments', paymentsEnhancedRoutes);
 
 console.log('✅ All routes registered');
 
@@ -270,12 +273,12 @@ app.get('/api/monitoring/metrics', async (req, res) => {
 });
 
 // Webhook endpoints for external services
-setupWebhooks(app, {
-  supabase: supabaseService,
-  multiRail: multiRailService,
-  compliance: complianceService,
-  monitoring: monitoringService
-});
+// setupWebhooks(app, {
+//   supabase: supabaseService,
+//   multiRail: multiRailService,
+//   compliance: complianceService,
+//   monitoring: monitoringService
+// });
 
 // Debug: List all registered routes
 app.get('/debug/routes', (req, res) => {

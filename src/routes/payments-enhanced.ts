@@ -1,6 +1,6 @@
 import express from 'express';
 import MultiRailService from '../services/multi-rail';
-import PaymentProcessor from '../services/payments';
+import PaymentProcessor from '../services/paymentProcessor';
 import SupabaseService from '../services/supabase';
 
 const router = express.Router();
@@ -87,7 +87,7 @@ router.post('/quote/enhanced', async (req, res) => {
     // Store quote in database
     await supabaseService.storeQuote(quote);
 
-    res.json({
+    return res.json({
       success: true,
       quote,
       competitive_analysis: {
@@ -100,7 +100,7 @@ router.post('/quote/enhanced', async (req, res) => {
 
   } catch (error: any) {
     console.error('Enhanced quote error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to generate quote',
       details: error.message
@@ -239,7 +239,7 @@ router.post('/process/enhanced', async (req, res) => {
     } = req.body;
 
     // Retrieve and validate quote
-    const quote = await supabaseService.getQuote(quoteId);
+    const quote = await supabaseService.getEnhancedQuote(quoteId);
     if (!quote) {
       return res.status(404).json({
         success: false,
@@ -307,7 +307,7 @@ router.post('/process/enhanced', async (req, res) => {
         updatedAt: new Date().toISOString()
       };
 
-      await supabaseService.createPayment(payment);
+      await supabaseService.createEnhancedPayment(payment);
 
       // Start compliance monitoring
       await multiRailService.monitorCompliance(payment.id);
@@ -354,7 +354,7 @@ router.get('/track/:paymentId', async (req, res) => {
     const { paymentId } = req.params;
 
     // Get payment details
-    const payment = await supabaseService.getPayment(paymentId);
+    const payment = await supabaseService.getEnhancedPayment(paymentId);
     if (!payment) {
       return res.status(404).json({
         success: false,

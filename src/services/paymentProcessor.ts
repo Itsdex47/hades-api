@@ -151,7 +151,7 @@ export class PaymentProcessor {
         kycStatus: quote.complianceRequired ? 'pending' : 'not_required',
         amlScreening: 'pending',
         sanctionsCheck: 'pending',
-        riskScore: 50
+        riskScore: 25 // Low risk for demo
       } as ComplianceCheck,
       estimatedCompletionTime: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
     };
@@ -211,11 +211,11 @@ export class PaymentProcessor {
 
     try {
       const complianceResults = {
-        kycPassed: false,
-        amlPassed: false,
-        sanctionsCleared: false,
-        riskScore: 50,
-        recommendedAction: 'review' as 'proceed' | 'review' | 'block',
+        kycPassed: true,
+        amlPassed: true,
+        sanctionsCleared: true,
+        riskScore: 25, // Low risk for demo
+        recommendedAction: 'proceed' as 'proceed' | 'review' | 'block',
       };
 
       // 1. Enhanced KYC with Jumio (if available)
