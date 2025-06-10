@@ -103,6 +103,11 @@ logs
 *.p12
 *.pfx
 
+# Wallet files (contain private keys)
+wallet.json
+*.wallet
+wallets/
+
 # Database
 *.sqlite
 *.sqlite3

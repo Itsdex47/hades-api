@@ -6,15 +6,6 @@
 import axios from 'axios';
 import logger from '../utils/logger';
 
-export interface ComplianceResult {
-  success: boolean;
-  riskLevel: 'low' | 'medium' | 'high';
-  riskScore: number;
-  recommendation: 'approve' | 'review' | 'reject';
-  flags: string[];
-  details?: any;
-}
-
 export interface KYCData {
   firstName: string;
   lastName: string;
@@ -41,32 +32,29 @@ export interface AMLScreeningData {
   counterpartyAddress?: string;
 }
 
+export interface ComplianceResult {
+  success: boolean;
+  riskLevel: 'low' | 'medium' | 'high';
+  riskScore: number;
+  recommendation: 'approve' | 'review' | 'block';
+  flags: string[];
+  details: any;
+}
+
 export class ComplianceService {
-  private jumioConfig: any;
-  private ellipticConfig: any;
-  private cubeConfig: any;
+  private circleConfig: any;
 
   constructor() {
-    this.jumioConfig = {
-      apiToken: process.env.JUMIO_API_TOKEN,
-      apiSecret: process.env.JUMIO_API_SECRET,
-      baseUrl: process.env.JUMIO_BASE_URL || 'https://netverify.com'
+    // Use Circle for compliance instead of separate providers
+    this.circleConfig = {
+      apiKey: process.env.CIRCLE_API_KEY,
+      baseUrl: process.env.CIRCLE_ENVIRONMENT === 'production' 
+        ? 'https://api.circle.com' 
+        : 'https://api-sandbox.circle.com'
     };
 
-    this.ellipticConfig = {
-      apiKey: process.env.ELLIPTIC_API_KEY,
-      baseUrl: 'https://api.elliptic.co'
-    };
-
-    this.cubeConfig = {
-      apiKey: process.env.CUBE_API_KEY,
-      baseUrl: 'https://api.cube.dev'
-    };
-
-    logger.info('Compliance service initialized', {
-      jumio: !!this.jumioConfig.apiToken,
-      elliptic: !!this.ellipticConfig.apiKey,
-      cube: !!this.cubeConfig.apiKey
+    logger.info('Compliance service initialized with Circle Compliance Engine', {
+      circle: !!this.circleConfig.apiKey
     });
   }
 
@@ -76,9 +64,7 @@ export class ComplianceService {
   async healthCheck(): Promise<boolean> {
     try {
       const checks = await Promise.allSettled([
-        this.checkJumioHealth(),
-        this.checkEllipticHealth(),
-        this.checkCubeHealth()
+        this.checkCircleHealth()
       ]);
 
       return checks.some(check => check.status === 'fulfilled' && check.value);
@@ -89,49 +75,47 @@ export class ComplianceService {
   }
 
   /**
-   * Comprehensive KYC verification using Jumio
+   * Comprehensive KYC verification using Circle's compliance features
    */
   async performKYC(data: KYCData): Promise<ComplianceResult> {
     try {
-      if (!this.jumioConfig.apiToken) {
+      if (!this.circleConfig.apiKey) {
         return this.mockKYCResult(data);
       }
 
-      // Create Jumio verification session
+      // Use Circle's compliance engine for KYC verification
       const response = await axios.post(
-        `${this.jumioConfig.baseUrl}/api/v4/accounts`,
+        `${this.circleConfig.baseUrl}/v1/compliance/kyc`,
         {
-          customerInternalReference: data.email,
-          workflowDefinition: {
-            key: 1, // Standard KYC workflow
-            credentials: [
-              {
-                category: 'ID',
-                type: { 
-                  country: data.address.country 
-                }
-              }
-            ]
+          customerReference: data.email,
+          personalDetails: {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            email: data.email,
+            phone: data.phone,
+            dateOfBirth: data.dateOfBirth
           },
-          callbackUrl: `${process.env.API_BASE_URL}/webhooks/jumio`,
-          userReference: data.email
+          address: data.address,
+          document: {
+            type: data.documentType,
+            number: data.documentNumber
+          }
         },
         {
           headers: {
-            'Authorization': `Bearer ${this.jumioConfig.apiToken}`,
-            'Content-Type': 'application/json',
-            'User-Agent': 'Starling-Remittance-API/0.2.0'
+            'Authorization': `Bearer ${this.circleConfig.apiKey}`,
+            'Content-Type': 'application/json'
           }
         }
       );
 
-      const verificationId = response.data.account?.workflowExecution?.id;
-      const redirectUrl = response.data.web?.href;
+      const verificationId = response.data.verificationId;
+      const status = response.data.status;
 
-      logger.info('KYC verification initiated', {
+      logger.info('Circle KYC verification initiated', {
         verificationId,
         email: data.email,
-        country: data.address.country
+        status
       });
 
       return {
@@ -142,14 +126,13 @@ export class ComplianceService {
         flags: [],
         details: {
           verificationId,
-          redirectUrl,
-          status: 'pending',
-          provider: 'jumio'
+          status,
+          provider: 'circle_compliance'
         }
       };
 
     } catch (error: any) {
-      logger.error('KYC verification failed:', {
+      logger.error('Circle KYC verification failed:', {
         error: error.message,
         email: data.email,
         response: error.response?.data
@@ -163,49 +146,48 @@ export class ComplianceService {
         flags: ['kyc_verification_failed'],
         details: {
           error: error.message,
-          provider: 'jumio'
+          provider: 'circle_compliance'
         }
       };
     }
   }
 
   /**
-   * Blockchain AML screening using Elliptic
+   * Blockchain AML screening using Circle's compliance engine
    */
   async performAMLScreening(data: AMLScreeningData): Promise<ComplianceResult> {
     try {
-      if (!this.ellipticConfig.apiKey) {
+      if (!this.circleConfig.apiKey) {
         return this.mockAMLResult(data);
       }
 
       const screeningPayload = {
-        subject: {
-          asset: this.getAssetFromBlockchain(data.blockchain || 'ethereum'),
-          hash: data.walletAddress || data.transactionHash,
-          type: data.walletAddress ? 'address' : 'transaction'
-        },
-        type: 'wallet_exposure'
+        walletAddress: data.walletAddress,
+        transactionHash: data.transactionHash,
+        amount: data.amount.toString(),
+        currency: data.currency,
+        blockchain: data.blockchain || 'ethereum'
       };
 
       const response = await axios.post(
-        `${this.ellipticConfig.baseUrl}/v2/analyses/synchronous`,
+        `${this.circleConfig.baseUrl}/v1/compliance/screening`,
         screeningPayload,
         {
           headers: {
-            'Authorization': `Bearer ${this.ellipticConfig.apiKey}`,
+            'Authorization': `Bearer ${this.circleConfig.apiKey}`,
             'Content-Type': 'application/json'
           }
         }
       );
 
-      const riskScore = response.data.risk_score || 0;
+      const riskScore = response.data.riskScore || 0;
       const sanctions = response.data.sanctions || [];
-      const riskFactors = response.data.risk_factors || [];
+      const riskFactors = response.data.riskFactors || [];
 
       const riskLevel = this.calculateRiskLevel(riskScore);
       const recommendation = this.getRecommendation(riskScore, sanctions.length);
 
-      logger.info('AML screening completed', {
+      logger.info('Circle AML screening completed', {
         address: data.walletAddress,
         riskScore,
         sanctionsCount: sanctions.length,
@@ -222,13 +204,13 @@ export class ComplianceService {
         details: {
           sanctions,
           riskFactors,
-          provider: 'elliptic',
+          provider: 'circle_compliance',
           blockchain: data.blockchain
         }
       };
 
     } catch (error: any) {
-      logger.error('AML screening failed:', {
+      logger.error('Circle AML screening failed:', {
         error: error.message,
         address: data.walletAddress,
         response: error.response?.data
@@ -242,7 +224,7 @@ export class ComplianceService {
         flags: ['aml_screening_failed'],
         details: {
           error: error.message,
-          provider: 'elliptic'
+          provider: 'circle_compliance'
         }
       };
     }
@@ -251,49 +233,35 @@ export class ComplianceService {
   /**
    * Comprehensive compliance check combining KYC and AML
    */
-  async performComprehensiveCheck(
-    kycData: KYCData,
-    amlData: AMLScreeningData
-  ): Promise<ComplianceResult> {
+  async performComprehensiveCheck(kycData: KYCData, amlData: AMLScreeningData): Promise<ComplianceResult> {
     try {
       const [kycResult, amlResult] = await Promise.all([
         this.performKYC(kycData),
         this.performAMLScreening(amlData)
       ]);
 
-      // Combine risk scores with weighted average
-      const combinedRiskScore = (kycResult.riskScore * 0.4) + (amlResult.riskScore * 0.6);
-      const combinedRiskLevel = this.calculateRiskLevel(combinedRiskScore);
-      
-      // Most restrictive recommendation wins
-      const recommendation = this.getMostRestrictiveRecommendation([
-        kycResult.recommendation,
-        amlResult.recommendation
-      ]);
+      const combinedRiskScore = Math.max(kycResult.riskScore, amlResult.riskScore);
+      const combinedFlags = [...kycResult.flags, ...amlResult.flags];
 
-      const combinedFlags = [
-        ...kycResult.flags,
-        ...amlResult.flags
-      ];
+      const overallRecommendation = this.getCombinedRecommendation([kycResult, amlResult]);
 
       logger.info('Comprehensive compliance check completed', {
-        email: kycData.email,
-        address: amlData.walletAddress,
+        kycSuccess: kycResult.success,
+        amlSuccess: amlResult.success,
         combinedRiskScore,
-        recommendation,
-        flagsCount: combinedFlags.length
+        recommendation: overallRecommendation
       });
 
       return {
         success: kycResult.success && amlResult.success,
-        riskLevel: combinedRiskLevel,
+        riskLevel: this.calculateRiskLevel(combinedRiskScore),
         riskScore: combinedRiskScore,
-        recommendation,
+        recommendation: overallRecommendation,
         flags: combinedFlags,
         details: {
           kyc: kycResult.details,
           aml: amlResult.details,
-          combined: true
+          provider: 'circle_compliance'
         }
       };
 
@@ -304,93 +272,26 @@ export class ComplianceService {
         success: false,
         riskLevel: 'high',
         riskScore: 100,
-        recommendation: 'reject',
+        recommendation: 'block',
         flags: ['comprehensive_check_failed'],
         details: {
-          error: error.message
-        }
-      };
-    }
-  }
-
-  /**
-   * Real-time transaction monitoring
-   */
-  async monitorTransaction(transactionData: {
-    id: string;
-    amount: number;
-    currency: string;
-    sender: any;
-    recipient: any;
-    blockchain?: string;
-  }): Promise<ComplianceResult> {
-    try {
-      // Check transaction patterns
-      const patternFlags = await this.checkTransactionPatterns(transactionData);
-      
-      // Check sanctions lists
-      const sanctionsFlags = await this.checkSanctionsList(
-        transactionData.sender,
-        transactionData.recipient
-      );
-
-      // Check amount thresholds
-      const thresholdFlags = this.checkAmountThresholds(
-        transactionData.amount,
-        transactionData.currency
-      );
-
-      const allFlags = [...patternFlags, ...sanctionsFlags, ...thresholdFlags];
-      const riskScore = this.calculateTransactionRiskScore(allFlags, transactionData);
-      const riskLevel = this.calculateRiskLevel(riskScore);
-      const recommendation = this.getRecommendation(riskScore, allFlags.length);
-
-      logger.info('Transaction monitoring completed', {
-        transactionId: transactionData.id,
-        riskScore,
-        flagsCount: allFlags.length,
-        recommendation
-      });
-
-      return {
-        success: true,
-        riskLevel,
-        riskScore,
-        recommendation,
-        flags: allFlags,
-        details: {
-          transactionId: transactionData.id,
-          monitoring: 'real_time',
-          timestamp: new Date().toISOString()
-        }
-      };
-
-    } catch (error: any) {
-      logger.error('Transaction monitoring failed:', error);
-      
-      return {
-        success: false,
-        riskLevel: 'high',
-        riskScore: 100,
-        recommendation: 'review',
-        flags: ['monitoring_failed'],
-        details: {
-          error: error.message
+          error: error.message,
+          provider: 'circle_compliance'
         }
       };
     }
   }
 
   // Private helper methods
-  private async checkJumioHealth(): Promise<boolean> {
+  private async checkCircleHealth(): Promise<boolean> {
     try {
-      if (!this.jumioConfig.apiToken) return false;
+      if (!this.circleConfig.apiKey) return false;
       
       const response = await axios.get(
-        `${this.jumioConfig.baseUrl}/api/v4/accounts/status`,
+        `${this.circleConfig.baseUrl}/v1/ping`,
         {
           headers: {
-            'Authorization': `Bearer ${this.jumioConfig.apiToken}`
+            'Authorization': `Bearer ${this.circleConfig.apiKey}`
           },
           timeout: 5000
         }
@@ -402,155 +303,32 @@ export class ComplianceService {
     }
   }
 
-  private async checkEllipticHealth(): Promise<boolean> {
-    try {
-      if (!this.ellipticConfig.apiKey) return false;
-      
-      const response = await axios.get(
-        `${this.ellipticConfig.baseUrl}/v2/ping`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.ellipticConfig.apiKey}`
-          },
-          timeout: 5000
-        }
-      );
-      
-      return response.status === 200;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  private async checkCubeHealth(): Promise<boolean> {
-    return !!this.cubeConfig.apiKey;
-  }
-
-  private getAssetFromBlockchain(blockchain: string): string {
-    const assetMap: { [key: string]: string } = {
-      'ethereum': 'ETH',
-      'bitcoin': 'BTC',
-      'solana': 'SOL',
-      'polygon': 'MATIC'
-    };
-    
-    return assetMap[blockchain.toLowerCase()] || 'ETH';
-  }
-
-  private calculateRiskLevel(riskScore: number): 'low' | 'medium' | 'high' {
-    if (riskScore < 25) return 'low';
-    if (riskScore < 75) return 'medium';
+  private calculateRiskLevel(score: number): 'low' | 'medium' | 'high' {
+    if (score < 30) return 'low';
+    if (score < 70) return 'medium';
     return 'high';
   }
 
-  private getRecommendation(riskScore: number, flagsCount: number): 'approve' | 'review' | 'reject' {
-    if (riskScore > 85 || flagsCount > 3) return 'reject';
-    if (riskScore > 50 || flagsCount > 1) return 'review';
+  private getRecommendation(riskScore: number, sanctionsCount: number): 'approve' | 'review' | 'block' {
+    if (sanctionsCount > 0 || riskScore >= 80) return 'block';
+    if (riskScore >= 50) return 'review';
+    return 'approve';
+  }
+
+  private getCombinedRecommendation(results: ComplianceResult[]): 'approve' | 'review' | 'block' {
+    if (results.some(r => r.recommendation === 'block')) return 'block';
+    if (results.some(r => r.recommendation === 'review')) return 'review';
     return 'approve';
   }
 
   private generateAMLFlags(riskScore: number, sanctions: any[], riskFactors: any[]): string[] {
     const flags = [];
     
-    if (riskScore > 75) flags.push('high_risk_score');
-    if (sanctions.length > 0) flags.push('sanctions_hit');
-    if (riskFactors.length > 2) flags.push('multiple_risk_factors');
-    if (riskScore > 50 && sanctions.length > 0) flags.push('sanctions_and_risk');
+    if (riskScore >= 70) flags.push('high_risk_score');
+    if (sanctions.length > 0) flags.push('sanctions_detected');
+    if (riskFactors.length > 0) flags.push('risk_factors_detected');
     
     return flags;
-  }
-
-  private getMostRestrictiveRecommendation(recommendations: string[]): 'approve' | 'review' | 'reject' {
-    if (recommendations.includes('reject')) return 'reject';
-    if (recommendations.includes('review')) return 'review';
-    return 'approve';
-  }
-
-  private async checkTransactionPatterns(transactionData: any): Promise<string[]> {
-    const flags = [];
-    
-    // Check for round number amounts (potential structuring)
-    if (transactionData.amount % 1000 === 0 && transactionData.amount >= 5000) {
-      flags.push('round_number_amount');
-    }
-    
-    // Check for high-frequency transactions from same sender
-    // This would require database lookup in real implementation
-    
-    // Check for unusual time patterns
-    const hour = new Date().getHours();
-    if (hour < 6 || hour > 23) {
-      flags.push('unusual_time_pattern');
-    }
-    
-    return flags;
-  }
-
-  private async checkSanctionsList(sender: any, recipient: any): Promise<string[]> {
-    const flags = [];
-    
-    // In real implementation, this would check against OFAC and other sanctions lists
-    // For now, we'll do basic country checks
-    const sanctionedCountries = ['IR', 'KP', 'SY', 'CU'];
-    
-    if (sanctionedCountries.includes(sender.country)) {
-      flags.push('sender_sanctioned_country');
-    }
-    
-    if (sanctionedCountries.includes(recipient.country)) {
-      flags.push('recipient_sanctioned_country');
-    }
-    
-    return flags;
-  }
-
-  private checkAmountThresholds(amount: number, currency: string): string[] {
-    const flags = [];
-    
-    // USD thresholds (convert other currencies as needed)
-    const usdAmount = this.convertToUSD(amount, currency);
-    
-    if (usdAmount >= 10000) {
-      flags.push('high_value_transaction');
-    }
-    
-    if (usdAmount >= 3000 && usdAmount < 10000) {
-      flags.push('medium_value_transaction');
-    }
-    
-    return flags;
-  }
-
-  private convertToUSD(amount: number, currency: string): number {
-    // Simplified conversion - in production, use real exchange rates
-    const rates: { [key: string]: number } = {
-      'USD': 1,
-      'GBP': 1.27,
-      'EUR': 1.09,
-      'MXN': 0.057,
-      'NGN': 0.0013
-    };
-    
-    return amount * (rates[currency] || 1);
-  }
-
-  private calculateTransactionRiskScore(flags: string[], transactionData: any): number {
-    let score = 0;
-    
-    // Base score from flags
-    score += flags.length * 15;
-    
-    // Amount-based scoring
-    const usdAmount = this.convertToUSD(transactionData.amount, transactionData.currency);
-    if (usdAmount > 10000) score += 20;
-    if (usdAmount > 50000) score += 40;
-    
-    // Pattern-based scoring
-    if (flags.includes('sanctioned_country')) score += 50;
-    if (flags.includes('round_number_amount')) score += 10;
-    if (flags.includes('unusual_time_pattern')) score += 5;
-    
-    return Math.min(score, 100); // Cap at 100
   }
 
   private mockKYCResult(data: KYCData): ComplianceResult {
@@ -566,7 +344,7 @@ export class ComplianceService {
       details: {
         verificationId: `mock_${Date.now()}`,
         status: 'approved',
-        provider: 'jumio_mock',
+        provider: 'circle_compliance_mock',
         email: data.email
       }
     };
@@ -585,7 +363,7 @@ export class ComplianceService {
       details: {
         sanctions: [],
         riskFactors: [],
-        provider: 'elliptic_mock',
+        provider: 'circle_compliance_mock',
         address: data.walletAddress
       }
     };

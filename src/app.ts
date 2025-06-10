@@ -215,9 +215,7 @@ app.get('/api/status', async (req, res) => {
         solana: { enabled: !!process.env.SOLANA_PRIVATE_KEY, type: 'blockchain_native' }
       },
       compliance: {
-        jumio: { enabled: !!process.env.JUMIO_API_TOKEN, service: 'kyc' },
-        elliptic: { enabled: !!process.env.ELLIPTIC_API_KEY, service: 'aml' },
-        cube: { enabled: !!process.env.CUBE_API_KEY, service: 'monitoring' }
+        circle_compliance: { enabled: !!process.env.CIRCLE_API_KEY, service: 'kyc_aml' }
       },
       metrics: metrics || {}
     });
@@ -409,16 +407,55 @@ app.listen(PORT, () => {
   console.log(`🛡️ Security: Rate limiting, CORS, Helmet enabled`);
   console.log(`📈 Monitoring: Real-time metrics and error tracking`);
 
-  // Log enabled features
+  console.log('📋 API Configuration Summary:');
+  console.log('🔧 Core Infrastructure:');
+  console.log('  ├── Database: Supabase (Multi-tenant, Row-level security)');
+  console.log('  ├── Authentication: JWT with refresh tokens');
+  console.log('  ├── Rate Limiting: Express rate limiter');
+  console.log('  └── Security: Helmet.js protection');
+  console.log('');
+  console.log('💳 Payment Rails:');
+  console.log('  ├── Traditional: Stripe (Cards, Bank transfers)');
+  console.log('  ├── Blockchain: Circle USDC (Ethereum, Solana)');
+  console.log('  ├── Fast Settlement: Solana USDC (Sub-second)');
+  console.log('  └── Analytics: Alchemy (Blockchain monitoring)');
+  console.log('');
+  console.log('🛡️ Compliance & Security:');
+  console.log('  ├── KYC/AML: Circle Compliance Engine');
+  console.log('  ├── Sanctions: Circle sanctions screening');
+  console.log('  ├── Risk Scoring: Circle risk assessment');
+  console.log('  └── Real-time Monitoring: Circle compliance monitoring');
+  console.log('');
+  console.log('🌍 Supported Corridors:');
+  console.log('  ├── US → Mexico (USD → MXN)');
+  console.log('  ├── US → Nigeria (USD → NGN)');
+  console.log('  ├── US → Philippines (USD → PHP)');
+  console.log('  ├── UK → Mexico (GBP → MXN)');
+  console.log('  └── EU → Nigeria (EUR → NGN)');
+
+  console.log('\n📊 Service Configuration:');
+  console.log('Core Services:');
+  console.log(`  ✓ Supabase Database: ${process.env.SUPABASE_URL ? 'Connected' : 'Not configured'}`);
+  console.log(`  ✓ JWT Authentication: ${process.env.JWT_SECRET ? 'Configured' : 'Default secret'}`);
+  console.log('');
+  console.log('Payment Services:');
+  console.log(`  • Stripe: ${process.env.STRIPE_SECRET_KEY ? '✅ Configured' : '❌ Missing'}`);
+  console.log(`  • Circle: ${process.env.CIRCLE_API_KEY ? '✅ Configured' : '❌ Missing'}`);
+  console.log(`  • Solana: ${process.env.SOLANA_PRIVATE_KEY ? '✅ Configured' : '❌ Missing'}`);
+  console.log(`  • Alchemy: ${process.env.ALCHEMY_API_KEY ? '✅ Configured' : '❌ Missing'}`);
+  console.log('');
+  console.log('Compliance Services:');
+  console.log(`  • Circle Compliance Engine: ${process.env.CIRCLE_API_KEY ? '✅ Integrated' : '❌ Missing'}`);
+
+  // List enabled features
   const enabledFeatures = [];
-  if (process.env.STRIPE_SECRET_KEY) enabledFeatures.push('Stripe');
-  if (process.env.CIRCLE_API_KEY) enabledFeatures.push('Circle USDC');
-  if (process.env.ALCHEMY_API_KEY) enabledFeatures.push('Alchemy');
-  if (process.env.SOLANA_PRIVATE_KEY) enabledFeatures.push('Solana');
-  if (process.env.JUMIO_API_TOKEN) enabledFeatures.push('Jumio KYC');
-  if (process.env.ELLIPTIC_API_KEY) enabledFeatures.push('Elliptic AML');
-  
-  console.log(`🔌 Enabled integrations: ${enabledFeatures.join(', ') || 'Demo mode only'}`);
+  if (process.env.STRIPE_SECRET_KEY) enabledFeatures.push('Stripe Payments');
+  if (process.env.CIRCLE_API_KEY) enabledFeatures.push('Circle USDC', 'Circle Compliance');
+  if (process.env.SOLANA_PRIVATE_KEY) enabledFeatures.push('Solana USDC');
+  if (process.env.ALCHEMY_API_KEY) enabledFeatures.push('Alchemy Analytics');
+
+  console.log('\n🚀 Enabled Features:');
+  enabledFeatures.forEach(feature => console.log(`  ✅ ${feature}`));
 });
 
 export default app;

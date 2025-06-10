@@ -94,9 +94,7 @@
       "hybrid": "enabled"
     },
     "compliance": {
-      "jumio": "enabled",
-      "elliptic": "enabled",
-      "cube": "enabled"
+      "circle_compliance": "enabled"
     },
     "monitoring": {
       "sentry": "optional",
