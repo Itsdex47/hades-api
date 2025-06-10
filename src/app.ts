@@ -9,7 +9,6 @@ import path from 'path';
 // Routes
 import authRoutes from './routes/auth';
 import paymentsRoutes from './routes/payments';
-// import paymentsEnhancedRoutes from './routes/payments-enhanced';
 
 // Services
 import SupabaseService from './services/supabase';
@@ -135,9 +134,6 @@ app.use('/api/auth', authRoutes);
 console.log('💳 Registering payments routes at /api/payments');
 app.use('/api/payments', paymentsRoutes);
 
-// console.log('🚀 Registering enhanced payments routes at /api/payments');
-// app.use('/api/payments', paymentsEnhancedRoutes);
-
 console.log('✅ All routes registered');
 
 // Enhanced health check with service status
@@ -168,7 +164,7 @@ app.get('/health', async (req, res) => {
       services: serviceStatuses,
       capabilities: {
         paymentRails: ['stripe', 'circle', 'alchemy', 'solana'],
-        compliance: ['jumio', 'elliptic', 'cube'],
+        compliance: ['circle'],
         monitoring: ['sentry', 'posthog'],
         corridors: ['US-MX', 'UK-NG', 'US-NG']
       }

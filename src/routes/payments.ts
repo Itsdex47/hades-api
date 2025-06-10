@@ -551,7 +551,7 @@ router.get('/health', async (req: express.Request, res: express.Response) => {
   try {
     const health = await paymentProcessor.healthCheck();
     
-    const allHealthy = health.overall;
+    const allHealthy = health.status === 'healthy';
     
     res.status(allHealthy ? 200 : 503).json({
       success: allHealthy,
