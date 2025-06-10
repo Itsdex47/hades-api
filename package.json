@@ -37,7 +37,8 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
-    "@circle-fin/circle-sdk": "^2.9.0",
+    "@circle-fin/circle-sdk": "^2.6.1",
+    "@circle-fin/developer-controlled-wallets": "^8.2.0",
     "@solana/spl-token": "^0.1.8",
     "@solana/web3.js": "^1.98.2",
     "@supabase/supabase-js": "^2.24.0",
@@ -73,6 +74,9 @@
     "@sentry/node": "^7.81.1",
     "alchemy-sdk": "^3.1.1",
     "posthog-node": "^3.6.3"
+  },
+  "overrides": {
+    "axios": "^1.8.2"
   },
   "engines": {
     "node": ">=18.0.0",
