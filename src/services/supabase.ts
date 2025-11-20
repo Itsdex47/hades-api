@@ -28,10 +28,11 @@ export class SupabaseService {
   }
 
   // User Management
-  async createUser(userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
+  async createUser(userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'> & { passwordHash: string }): Promise<User> {
     // Map camelCase to snake_case for database insertion
     const dbUserData = {
       email: userData.email,
+      password_hash: userData.passwordHash,  // Store hashed password
       first_name: userData.firstName,        // camelCase -> snake_case
       last_name: userData.lastName,          // camelCase -> snake_case
       phone: userData.phone,
@@ -76,7 +77,7 @@ export class SupabaseService {
     return this.mapDbUserToUser(data);
   }
 
-  async getUserByEmail(email: string): Promise<User | null> {
+  async getUserByEmail(email: string): Promise<(User & { passwordHash?: string }) | null> {
     const { data, error } = await this.supabase
       .from('users')
       .select('*')
@@ -88,7 +89,12 @@ export class SupabaseService {
       throw new Error(`Failed to get user by email: ${error.message}`);
     }
 
-    return this.mapDbUserToUser(data);
+    // Include password_hash in response for login verification
+    const user = this.mapDbUserToUser(data);
+    return {
+      ...user,
+      passwordHash: data.password_hash
+    };
   }
 
   async updateUserKYCStatus(userId: string, kycStatus: string): Promise<void> {

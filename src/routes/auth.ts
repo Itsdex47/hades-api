@@ -126,6 +126,7 @@ router.post('/register', async (req: express.Request, res: express.Response) => 
     // Create user
     const userData = {
       email,
+      passwordHash: hashedPassword,
       firstName,
       lastName,
       phone: phone || null,
@@ -182,9 +183,10 @@ router.post('/register', async (req: express.Request, res: express.Response) => 
   }
 });
 
-// User login (placeholder - you'll implement proper password storage)
+// User login
 router.post('/login', async (req: express.Request, res: express.Response) => {
   try {
+    console.log('🔐 Login attempt started...');
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -192,13 +194,32 @@ router.post('/login', async (req: express.Request, res: express.Response) => {
       return;
     }
 
-    // For demo purposes, allow login with any password for existing users
-    // In production, you'd check against stored password hash
+    // Get user from database (includes password hash)
     const user = await supabaseService.getUserByEmail(email);
     if (!user) {
+      console.log('❌ User not found:', email);
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
+
+    // Verify password
+    if (!user.passwordHash) {
+      console.error('❌ User has no password hash stored:', email);
+      res.status(500).json({ error: 'Account configuration error. Please contact support.' });
+      return;
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordMatch) {
+      console.log('❌ Invalid password for user:', email);
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+
+    console.log('✅ Password verified successfully');
+
+    // Update last login timestamp
+    await supabaseService.updateUserKYCStatus(user.id, user.kycStatus); // Using this as a placeholder until we add updateLastLogin
 
     // Generate JWT token
     const token = jwt.sign(

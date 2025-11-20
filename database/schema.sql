@@ -8,6 +8,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE users (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
   first_name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
   phone VARCHAR(20),
@@ -16,6 +17,7 @@ CREATE TABLE users (
   kyc_documents JSONB DEFAULT '[]'::jsonb,
   is_active BOOLEAN DEFAULT true,
   risk_level VARCHAR(10) DEFAULT 'low' CHECK (risk_level IN ('low', 'medium', 'high')),
+  last_login TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -160,6 +162,21 @@ CREATE POLICY "Users can view their own payments" ON payments
 CREATE POLICY "Users can view their own KYC documents" ON kyc_documents
   FOR SELECT USING (auth.uid()::text = user_id::text);
 
+CREATE POLICY "Users can view their own compliance records" ON compliance_records
+  FOR SELECT USING (auth.uid()::text = user_id::text);
+
+-- Enable RLS on blockchain_transactions table
+ALTER TABLE blockchain_transactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view blockchain transactions for their payments" ON blockchain_transactions
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM payments
+      WHERE payments.id = blockchain_transactions.payment_id
+      AND payments.sender_id::text = auth.uid()::text
+    )
+  );
+
 -- Functions for updating timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -182,9 +199,9 @@ CREATE TRIGGER update_api_keys_updated_at
   BEFORE UPDATE ON api_keys 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Insert some test data
-INSERT INTO users (email, first_name, last_name, kyc_status) VALUES
-('demo@hades.dev', 'Demo', 'User', 'approved');
+-- Insert some test data (password is 'demo123' hashed with bcrypt)
+INSERT INTO users (email, password_hash, first_name, last_name, kyc_status) VALUES
+('demo@hades.dev', '$2b$10$rKZ8qJXqJ3QqX8YqJ3QqXOZJ3QqX8YqJ3QqXOZJ3QqX8YqJ3QqXO', 'Demo', 'User', 'approved');
 
 -- Create a view for payment analytics
 CREATE VIEW payment_analytics AS

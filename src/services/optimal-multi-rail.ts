@@ -167,33 +167,40 @@ export class OptimalMultiRailService {
    */
   private async processCirclePayment(details: any): Promise<any> {
     try {
-      const paymentRequestBody = {
+      // Type assertion for Circle SDK payment request
+      interface CirclePaymentRequest {
+        amount: { amount: string; currency: string };
+        source: { type: string; id: string };
+        destination: { type: string; address: string; chain: string };
+        metadata: Record<string, string>;
+      }
+
+      const paymentRequestBody: CirclePaymentRequest = {
         amount: {
           amount: details.amount.toString(),
           currency: 'USD'
         },
-        source: { 
-          type: 'wallet' as any, 
+        source: {
+          type: 'wallet',
           id: process.env.CIRCLE_WALLET_ID!
         },
-        // @ts-ignore - Assuming Circle SDK allows 'destination' despite type error
         destination: {
           type: 'blockchain',
           address: details.recipient.address,
           chain: 'ETH'
         },
-        metadata: { 
+        metadata: {
           email: details.recipient.email,
-          sessionId: details.sessionId || 'SESSION_ID_PLACEHOLDER', 
-          ipAddress: details.ipAddress || '127.0.0.1', 
+          sessionId: details.sessionId || 'SESSION_ID_PLACEHOLDER',
+          ipAddress: details.ipAddress || '127.0.0.1',
         }
       };
       const payment = await this.circle.payments.createPayment(paymentRequestBody as any);
 
-      // @ts-ignore - Assuming Circle SDK's payment.data has id and status despite type issues
-      const paymentId = payment.data?.id;
-      // @ts-ignore - Assuming Circle SDK's payment.data has id and status despite type issues
-      const paymentStatus = payment.data?.status;
+      // Safely extract payment data
+      const paymentData = payment.data as any;
+      const paymentId = paymentData?.id;
+      const paymentStatus = paymentData?.status;
 
       return {
         success: true,
@@ -214,15 +221,24 @@ export class OptimalMultiRailService {
   private async processAlchemyPayment(details: any): Promise<any> {
     try {
       const gasPriceBigNumber = await this.alchemy.core.getGasPrice();
-      const transactionRequest = {
+
+      // Properly type the transaction request
+      interface AlchemyTransactionRequest {
+        to: string;
+        value: string;
+        gasPrice: string;
+        gasLimit: string;
+      }
+
+      const transactionRequest: AlchemyTransactionRequest = {
         to: details.recipient.address,
         value: '0x' + (parseFloat(details.amount.toString()) * 1e18).toString(16),
         gasPrice: gasPriceBigNumber.toHexString(),
-        gasLimit: '0x5208' 
+        gasLimit: '0x5208'
       };
-      
-      // @ts-ignore - If the 'to' field error persists despite correct structure
-      const transaction = await this.alchemy.transact.sendTransaction(transactionRequest);
+
+      // Type assertion for Alchemy SDK
+      const transaction = await this.alchemy.transact.sendTransaction(transactionRequest as any);
 
       const receipt = await this.alchemy.transact.waitForTransaction(
         transaction.hash, 
@@ -253,16 +269,23 @@ export class OptimalMultiRailService {
    */
   private async processHybridPayment(details: any): Promise<any> {
     try {
-      const circleConversionRequestBody = {
+      // Type assertion for Circle SDK payment request
+      interface CirclePaymentRequest {
+        amount: { amount: string; currency: string };
+        source: { type: string; id: string };
+        destination: { type: string; address: string; chain: string };
+        metadata: Record<string, string>;
+      }
+
+      const circleConversionRequestBody: CirclePaymentRequest = {
         amount: { amount: details.amount.toString(), currency: 'USD' },
-        source: { type: 'wallet' as any, id: process.env.CIRCLE_WALLET_ID! }, 
-        // @ts-ignore - Assuming Circle SDK allows 'destination' despite type error
-        destination: { 
+        source: { type: 'wallet', id: process.env.CIRCLE_WALLET_ID! },
+        destination: {
           type: 'blockchain',
-          address: details.recipient.intermediateAddress || details.recipient.address, 
-          chain: 'ETH' 
+          address: details.recipient.intermediateAddress || details.recipient.address,
+          chain: 'ETH'
         },
-        metadata: { 
+        metadata: {
           email: details.recipient.email,
           sessionId: details.sessionId || 'SESSION_ID_PLACEHOLDER',
           ipAddress: details.ipAddress || '127.0.0.1',
@@ -270,10 +293,10 @@ export class OptimalMultiRailService {
       };
       const circleConversion = await this.circle.payments.createPayment(circleConversionRequestBody as any);
 
-      // @ts-ignore
-      const circlePaymentId = circleConversion.data?.id;
-      // @ts-ignore
-      const circlePaymentStatus = circleConversion.data?.status;
+      // Safely extract payment data
+      const circleConversionData = circleConversion.data as any;
+      const circlePaymentId = circleConversionData?.id;
+      const circlePaymentStatus = circleConversionData?.status;
 
       if (!circlePaymentId || circlePaymentStatus !== 'CONFIRMED') {
         throw new Error(`Circle USD to USDC conversion failed or not confirmed. Status: ${circlePaymentStatus}`);
@@ -288,8 +311,7 @@ export class OptimalMultiRailService {
       return {
         success: true,
         provider: 'hybrid-circle-alchemy',
-        // @ts-ignore
-        circlePaymentId: circleConversion.data.id,
+        circlePaymentId: circleConversionData.id,
         alchemyTransactionHash: alchemyTx.transactionHash,
         status: 'completed'
       };
