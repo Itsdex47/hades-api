@@ -148,9 +148,14 @@ router.post('/register', async (req: express.Request, res: express.Response) => 
     console.log('✅ User created in database:', { id: user.id, email: user.email });
 
     // Generate JWT token
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET environment variable is required');
+    }
+
     const token = jwt.sign(
       { userId: user.id, email: user.email },
-      (process.env.JWT_SECRET || 'fallback_secret') as Secret,
+      jwtSecret as Secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as SignOptions
     );
     console.log('🎫 JWT token generated');
@@ -222,9 +227,14 @@ router.post('/login', async (req: express.Request, res: express.Response) => {
     await supabaseService.updateUserKYCStatus(user.id, user.kycStatus); // Using this as a placeholder until we add updateLastLogin
 
     // Generate JWT token
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET environment variable is required');
+    }
+
     const token = jwt.sign(
       { userId: user.id, email: user.email },
-      (process.env.JWT_SECRET || 'fallback_secret') as Secret,
+      jwtSecret as Secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as SignOptions
     );
 
@@ -321,7 +331,14 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
     return;
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret', (err: any, user: any) => {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    console.error('❌ JWT_SECRET not configured');
+    res.status(500).json({ error: 'Server configuration error' });
+    return;
+  }
+
+  jwt.verify(token, jwtSecret, (err: any, user: any) => {
     if (err) {
       res.status(403).json({ error: 'Invalid or expired token' });
       return;
