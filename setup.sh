@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# 🚀 Starling Labs Remittance API - Quick Setup Script
+# 🚀 H.A.D.E.S. API - Quick Setup Script
 
-echo "🚀 Setting up Starling Labs Remittance API..."
+echo "🚀 Setting up H.A.D.E.S. API..."
 
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then

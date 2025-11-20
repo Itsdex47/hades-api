@@ -80,8 +80,8 @@ export interface FiatDetails {
 }
 
 export interface PaymentFees {
-  starlingFee: number;
-  starlingFeePercent: number;
+  platformFee: number;
+  platformFeePercent: number;
   blockchainFee: number;
   fxSpread: number;
   partnerFee: number;

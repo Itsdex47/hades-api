@@ -1,4 +1,4 @@
--- Starling Remittance API Database Schema
+-- H.A.D.E.S. API Database Schema
 -- Run this in your Supabase SQL Editor
 
 -- Enable UUID extension
@@ -183,8 +183,8 @@ CREATE TRIGGER update_api_keys_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Insert some test data
-INSERT INTO users (email, first_name, last_name, kyc_status) VALUES 
-('demo@starlinglabs.dev', 'Demo', 'User', 'approved');
+INSERT INTO users (email, first_name, last_name, kyc_status) VALUES
+('demo@hades.dev', 'Demo', 'User', 'approved');
 
 -- Create a view for payment analytics
 CREATE VIEW payment_analytics AS

@@ -95,7 +95,7 @@ export class AlchemyService {
       baseURL: this.baseUrl,
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'Starling Remittance API/1.0',
+        'User-Agent': 'H.A.D.E.S. API/1.0',
       },
     });
 

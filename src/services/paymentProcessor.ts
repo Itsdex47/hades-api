@@ -413,7 +413,7 @@ export class PaymentProcessor {
         fromWallet: process.env.SOLANA_PRIVATE_KEY || 'demo_wallet_key',
         toAddress: 'demo_recipient_address',
         amount: payment.request.amountUSD,
-        memo: `Starling payment ${paymentId}`,
+        memo: `H.A.D.E.S. payment ${paymentId}`,
       };
 
       // For demo purposes, simulate the transfer

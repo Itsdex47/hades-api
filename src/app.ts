@@ -155,10 +155,10 @@ app.get('/health', async (req, res) => {
 
     const allHealthy = Object.values(serviceStatuses).every(status => status === true);
 
-    res.status(allHealthy ? 200 : 503).json({ 
+    res.status(allHealthy ? 200 : 503).json({
       status: allHealthy ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
-      service: 'Starling Remittance API',
+      service: 'H.A.D.E.S. API',
       version: '0.2.0',
       environment: process.env.NODE_ENV,
       services: serviceStatuses,
@@ -174,7 +174,7 @@ app.get('/health', async (req, res) => {
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
-      service: 'Starling Remittance API',
+      service: 'H.A.D.E.S. API',
       error: 'Service health check failed'
     });
   }
@@ -184,9 +184,9 @@ app.get('/health', async (req, res) => {
 app.get('/api/status', async (req, res) => {
   try {
     const metrics = await monitoringService.getSystemMetrics();
-    
-    res.json({ 
-      message: 'Starling Labs Multi-Rail Remittance API is running! 🚀',
+
+    res.json({
+      message: 'H.A.D.E.S. Multi-Rail Remittance API is running! 🚀',
       version: '0.2.0',
       environment: process.env.NODE_ENV,
       uptime: process.uptime(),
@@ -387,7 +387,7 @@ process.on('SIGINT', async () => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Starling Multi-Rail Remittance API v0.2.0 running on port ${PORT}`);
+  console.log(`🚀 H.A.D.E.S. Multi-Rail Remittance API v0.2.0 running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 User registration: POST http://localhost:${PORT}/api/auth/register`);
   console.log(`💰 Enhanced payment quote: POST http://localhost:${PORT}/api/payments/quote/enhanced`);

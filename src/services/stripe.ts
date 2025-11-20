@@ -61,7 +61,7 @@ export class StripeService {
         address: customerData.address,
         metadata: {
           ...customerData.metadata,
-          created_via: 'starling_api',
+          created_via: 'hades_api',
           created_at: new Date().toISOString(),
         },
       });
@@ -89,7 +89,7 @@ export class StripeService {
         confirm: true,
         metadata: {
           ...request.metadata,
-          processed_via: 'starling_api',
+          processed_via: 'hades_api',
           timestamp: new Date().toISOString(),
         },
         // Enhanced fraud detection
@@ -130,7 +130,7 @@ export class StripeService {
         description: request.description,
         metadata: {
           ...request.metadata,
-          payout_via: 'starling_api',
+          payout_via: 'hades_api',
           timestamp: new Date().toISOString(),
         },
       });

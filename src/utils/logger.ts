@@ -1,6 +1,6 @@
 /**
  * Winston Logger Configuration
- * Comprehensive logging for Starling Remittance API
+ * Comprehensive logging for H.A.D.E.S. API
  */
 
 import * as winston from 'winston';

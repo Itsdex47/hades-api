@@ -41,10 +41,10 @@ router.post('/quote', async (req: express.Request, res: express.Response) => {
     const exchangeRate = exchangeRates[rateKey] || 1;
     
     // Fee structure
-    const starlingFeePercent = 0.015; // 1.5%
-    const starlingFee = amount * starlingFeePercent;
+    const platformFeePercent = 0.015; // 1.5%
+    const platformFee = amount * platformFeePercent;
     const blockchainFee = 0.01; // Very low on Solana
-    const totalFees = starlingFee + blockchainFee;
+    const totalFees = platformFee + blockchainFee;
     
     const amountAfterFees = amount - totalFees;
     const recipientAmount = parseFloat((amountAfterFees * exchangeRate).toFixed(2));
@@ -61,8 +61,8 @@ router.post('/quote', async (req: express.Request, res: express.Response) => {
       outputCurrency: toCurrency,
       exchangeRate,
       fees: {
-        starlingFee: parseFloat(starlingFee.toFixed(2)),
-        starlingFeePercent,
+        platformFee: parseFloat(platformFee.toFixed(2)),
+        platformFeePercent,
         blockchainFee,
         fxSpread: 0,
         partnerFee: 0,
@@ -94,10 +94,10 @@ router.post('/quote', async (req: express.Request, res: express.Response) => {
         outputCurrency: quote.outputCurrency,
         exchangeRate: quote.exchangeRate,
         fees: {
-          starlingFee: quote.fees.starlingFee,
+          platformFee: quote.fees.platformFee,
           blockchainFee: quote.fees.blockchainFee,
           totalFees: quote.fees.totalFeeUSD,
-          feePercentage: starlingFeePercent * 100
+          feePercentage: platformFeePercent * 100
         },
         estimatedTime: quote.estimatedTime,
         validUntil: quote.validUntil.toISOString(),
@@ -177,7 +177,7 @@ router.post('/demo', authenticateToken, async (req: express.Request, res: expres
       outputCurrency = 'MXN',
       recipientDetails,
       purpose = 'Demo payment',
-      reference = 'Starling Labs Demo'
+      reference = 'H.A.D.E.S. Demo'
     } = req.body;
 
     // Validation for demo
@@ -193,10 +193,10 @@ router.post('/demo', authenticateToken, async (req: express.Request, res: expres
 
     // Create a demo quote using the existing saveQuote method (correct schema)
     const exchangeRate = 18.50;
-    const starlingFeePercent = 0.015;
-    const starlingFee = amount * starlingFeePercent;
+    const platformFeePercent = 0.015;
+    const platformFee = amount * platformFeePercent;
     const blockchainFee = 0.50;
-    const totalFees = starlingFee + blockchainFee;
+    const totalFees = platformFee + blockchainFee;
     const outputAmount = (amount - totalFees) * exchangeRate;
 
     const quoteId = `demo_quote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -209,8 +209,8 @@ router.post('/demo', authenticateToken, async (req: express.Request, res: expres
       outputCurrency,
       exchangeRate,
       fees: {
-        starlingFee: parseFloat(starlingFee.toFixed(2)),
-        starlingFeePercent,
+        platformFee: parseFloat(platformFee.toFixed(2)),
+        platformFeePercent,
         blockchainFee,
         fxSpread: 0,
         partnerFee: 0,

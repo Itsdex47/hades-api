@@ -1,4 +1,4 @@
-# 🚀 Starling Labs Remittance API - QUICK START
+# 🚀 H.A.D.E.S. API - QUICK START
 
 ## Current Status: Week 3 Complete ✅
 
@@ -29,8 +29,8 @@ You now have a **production-ready cross-border payment API** with full blockchai
 
 ### 1. **Clone & Install**
 ```bash
-git clone https://github.com/Itsdex47/starling-remittance-api.git
-cd starling-remittance-api
+git clone https://github.com/Itsdex47/hades-api.git
+cd hades-api
 npm run setup
 ```
 
@@ -270,4 +270,4 @@ Your API is production-ready for MVP testing. You have:
 
 ---
 
-*Built with ❤️ by Starling Labs - Connecting the world through better payments*
+*Built with ❤️ by H.A.D.E.S. - Connecting the world through better payments*
